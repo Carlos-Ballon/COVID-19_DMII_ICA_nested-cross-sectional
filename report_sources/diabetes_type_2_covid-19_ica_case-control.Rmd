@@ -1,0 +1,2818 @@
+---
+title: "Risk factors associated with COVID-19 mortality in patients with type 2 diabetes - Case-Control"
+author: "Carlos Ballon-Salcedo & Kevin J. Paez"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Set global knitr options
+
+```{r}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+# Load packages
+
+```{r}
+# Packages
+pacman::p_load(
+  rio,
+  here,
+  reportfactory,
+  rfextras,
+  tidyverse,
+  ggcorrplot,
+  ggsci,
+  ggpubr,
+  ggbiplot,
+  finalfit,
+  gtsummary,
+  flextable,
+  ftExtra,
+  broom,
+  performance,
+  lmtest,
+  stats,
+  moments,
+  nortest,
+  epiDisplay,
+  car,
+  Rtsne,
+  factoextra,
+  corrplot,
+  grateful,
+  patchwork,
+  officer
+)
+# My function scripts
+rfextras::load_scripts()
+```
+
+```{r}
+grateful::cite_packages(
+  output = "file",
+  out.format = "docx",
+  out.dir = ".",
+  citation.style = "vancouver")
+```
+
+# Import data
+
+```{r}
+clean_data <- import(here("data", "data.csv"))
+```
+
+# Set themes
+
+## Define `gtsummary` theme
+
+```{r}
+my_gtsummary_theme <-
+  list(
+    "pkgwide-fn:pvalue_fun" = function(x)
+      style_pvalue(x, digits = 2),
+    "pkgwide-fn:prependpvalue_fun" = function(x)
+      style_pvalue(x, digits = 2, prepend_p = TRUE),
+    "tbl_summary-str:continuous_stat" = "{median} ({p25}, {p75})",
+    "tbl_summary-str:categorical_stat" = "{n} ({p}%)",
+    "tbl_summary-fn:percent_fun" = function(x)
+      style_number(x, digits = 1, scale = 100),
+    "tbl_summary-arg:missing" = "no"
+  )
+
+# Set a gtsummary theme
+set_gtsummary_theme(my_gtsummary_theme, theme_gtsummary_compact())
+
+# Set a gtsummary language
+theme_gtsummary_language(language = "en")
+```
+
+## Define `flextable` theme
+
+```{r}
+my_flextable_theme <- function(x, bold_header = FALSE) {
+  std_border <- fp_border(width = 1, color = "grey14")
+  
+  x <- border_remove(x)
+  x <- hline_top(x, border = std_border, part = "header")
+  x <- hline_bottom(x, border = std_border, part = "header")
+  x <- bold(x, bold = bold_header, part = "header")
+  x <- hline_bottom(x, border = std_border, part = "body")
+  x <- align(x, align = "left", part = "body")
+  x <- align(x, align = "center", part = "header")
+  x <- font(x, part = "all", fontname = "Segoe UI")
+  fix_border_issues(x, part = "all")
+  autofit(x)
+}
+```
+
+# Process data
+
+## Remove missing values (>10% by variable)
+
+```{r}
+clean_data <- clean_data |>
+  dplyr::select(where( ~ sum(is.na(.)) < 90))
+```
+
+::: {style="text-align: justify"}
+The following variables were removed: mcv, mch, hemoglobin, hematocrit, creatinine, urea, glucose, ph, anion_gap, sodio, potasio, cloro, calcio, fi_o2, pco2, hco3, lactate, antiparasitic.
+:::
+
+## Matching
+
+The matchup will be with a 1:3 ratio match.
+
+```{r}
+# Matching for Causal Inference
+data <- MatchIt::matchit(
+  I(t2dm == "yes") ~ edad,
+  data = clean_data,
+  exact = ~ sex,
+  caliper = c(edad = 3),
+  std.caliper = T,
+  distance = "euclidean",
+  ratio = 3
+)
+
+# Construct a matched dataset from a matchit object
+data_match_eda <- MatchIt::match.data(data, subclass = "matched_id")
+```
+
+## Recode and relevel (dictionary)
+
+::: {style="text-align: justify"}
+This subsection converts categorical variables into factors and recode/clean values using a data dictionary. The categorical variables will be saved as factor vectors, while some continuous/numeric variables will be categorized and converted into factors. Then, recode and change the factor levels using the `forcats` package. Also, the `finalfit` package will be utilized to label variables, while the `ftExtra` package will detect special characters and format the character columns as markdown text to be added to the flextable object. An alternate option is to utilize the `matchmaker` package for dictionary-based cleanup or `labelled` package to manipulate metadata. The disadvantage of categorizing continuous variables is that information is discarded. To address this, repeat the analysis on continuous variables to ensure there are no differences in the conclusion (sensitivity analysis).
+:::
+
+> 📝***NOTE:*** The markdown texts is by design a plain text
+
+### Exposures and outcomes
+
+::: {style="text-align: justify"}
+Potential risk factors associated with mortality caused by COVID-19 in patients with type II diabetes mellitus (T2DM) are presented, each factor/variable is labeled with a legend that indicates its clinical importance, accuracy, and number of events. This is see in the **dictionary** script.
+::: 
+
+-   Clinically important with enough evidence but with small number of events, shown as `\####`
+-   Clinically important with enough evidence and enough number of events, shown as `\###`
+-   Clinically important with limited evidence, shown as `\##`
+-   Inconsistent or contradictory evidence and unconfirmed accuracy (self-reported) `\#`
+
+```{r}
+data_match_eda <- dictionary(data_match_eda)
+```
+
+## Variable selection for Exploratory Data Analysis
+
+```{r}
+data_match_eda <- var_selec_eda(data_match_eda)
+```
+
+## Exploratory Data Analysis (EDA)
+
+::: {style="text-align: justify"}
+In this subsection we will see a preview of the descriptive statistics, some summary measures from our sample. How you visualize the distribution of a variable will depend on whether the variable is categorical or continuous. The continuous data can be measured and categorical/discrete data can be counted. To examine the distribution of a continuous variable, use a histogram. To examine the distribution of a categorical variable, use a bar chart
+
+Descriptive statistics help you describe your current data, while inferential statistics allow you to make predictions and informed decisions based on your data.
+:::
+
+### Categorical variables
+
+::: {style="text-align: justify"}
+A categorical variable is a variable that can take on one of a small set of values. These values can be character, logical, or factor values. According to the object classes, character class objects are the most flexible, while logic class objects are the most restrictive. Many categorical variables lack an intrinsic order, and thus, it is necessary to reorder them to create a more informative display.
+:::
+
+```{r, eval=FALSE}
+# Selection of factors
+categorical <- data_match_eda |> 
+  dplyr::select(where(is.factor), -matched_id)
+
+# Multiple tables
+lapply(categorical, function(x)
+  table(x, categorical$t2dm))
+```
+
+### Numerical variables
+
+::: {style="text-align: justify"}
+The distribution of continuous/numeric variables can be visualized using histograms, frequency polygons, Q-Q plots, box plots, violin plots, jitter plots, and Sina plots. A variable is considered continuous if it can assume any value from an infinite set of ordered values within an interval. A histogram shows the distribution of a continuous variable and differs from a bar chart by grouping data into continuous intervals. It also examines the distribution of a continuous variable broken down by a categorical variable (categorical outcome). A density plot displays the density instead of the count, which is the standardized count so that the area under each frequency polygon is 1 or 100%. In addition to the histogram and the frequency polygon, the probability distribution of a continuous variable can be obtained from the **density function**. This function is defined in terms of probability and would construct a frequency polygon if we had an infinite set of data, resulting in a continuous curve.
+:::
+
+```{r results='hide'}
+# Selection of numerical variables
+numerical <- data_match_eda |>
+  dplyr::select(where(is.numeric))
+
+# Summary statistics
+lapply(numerical, function(x)
+  summary(x))
+```
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+# Variable groups
+dem_numerical <- numerical |>
+  dplyr::select(edad:p_a_diastolica)
+
+hemo_numerical <- numerical |>
+  dplyr::select(wbc:platelets)
+
+gas_numerical <- numerical |>
+  dplyr::select(saturacion_de_oxigeno:pao2)
+
+# Formal and visual exploration
+total_plots(dem_numerical)
+```
+
+### Numerical variables in survivors and non-survivor
+
+::: {style="text-align: justify"}
+In this part, density plots will be used to illustrate the data grouped by the outcome. Other plots will not be included in the analysis, as a table with more detailed information will be presented. The questions we will ask ourselves are: Does the data appear to be normally distributed? and are the variances between groups equal?
+:::
+
+```{r}
+# Selection of numerical variables of patients with T2DM
+surv_numerical_t2dm <- data_match_eda |>
+  dplyr::select(where(is.numeric), outcome, t2dm) |>
+  dplyr::filter(t2dm == "yes")
+
+# # Selection of numerical variables of patients without T2DM
+non_numerical_not2dm <- data_match_eda |>
+  dplyr::select(where(is.numeric), outcome, t2dm) |>
+  dplyr::filter(t2dm == "no")
+```
+
+```{r eval=FALSE}
+# Summary statistics of survivors
+lapply(surv_numerical_t2dm, function(x)
+  summary(x))
+
+# Summary statistics of non-survivors
+lapply(non_numerical_not2dm, function(x)
+  summary(x))
+```
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of age by group
+p1 <- group_stat_table_plot(surv_numerical_t2dm, "frecuencia_cardiaca", "outcome")
+
+# Exploration of white-cells by group
+p2 <- group_stat_table_plot(surv_numerical_t2dm, "pafi", "outcome")
+
+# Exploration of neutrophils by group
+p3 <- group_stat_table_plot(surv_numerical_t2dm, "pafi_cal", "outcome")
+
+# Exploration of lymphocytes by group
+p4 <- group_stat_table_plot(surv_numerical_t2dm, "pao2", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(tag_levels = 'A')
+```
+
+### Correlation matrix (multicollinearity)
+
+::: {style="text-align: justify"}
+The correlation between independent variables will be explored in order to identify multicollinearity. The numeric variables are different, with the exception of white-cells and the PaO~2~:FiO~2~ ratio. In the case of using white-cells and neutrophils or lymphocytes, it's possible that the information provided by white-cells may be redundant and generate biased estimates. The same applies to the PaO~2~:FiO~2~ ratio and the FiO~2~. Given the clinical relevance of the PaO₂:FiO₂ ratio, it is preferable to work with this ratio rather than the PaO₂ alone.
+:::
+
+> 📝***NOTE:*** ggplot objects can't process markdown text
+
+```{r fig.height=9, fig.width=9, fig.align='center'}
+# Selection of numerical variables
+data_num = data_match_eda |>
+  dplyr::select(where(is.numeric), -weights) |>
+  na.omit()
+
+# Rename variables
+cor_data = rename(
+  data_num,
+  "Age" = edad,
+  "Respiratory rate" = frecuencia_respiratoria,
+  "Heart rate" = frecuencia_cardiaca,
+  "SBP" = p_a_sistolica,
+  "DBP" = p_a_diastolica,
+  "White-cells" = wbc,
+  "Neutrophils" = neutrofilos,
+  "Lymphocytes" = linfocitos,
+  "NLR" = nlr,
+  "Platelets" = platelets,
+  "SaO2" = saturacion_de_oxigeno,
+  "FiO2" = fio2,
+  "PaO2:Fio2 ratio" = pafi,
+  "Calculated\nPaO2:Fio2 ratio" = pafi_cal,
+  "PaO2" = pao2,
+  "Follow-up time (days)" = len_hosp_stay
+)
+
+# Correlation matrix
+corr <- round(cor(cor_data), 1)
+
+# Color visualization
+FS1 <- my_ggcorrplor(corr)
+
+# View
+FS1
+
+# Gray visualization
+FS1_grey <- my_ggcorrplor_grey(corr)
+```
+
+# Produce outputs
+
+## Variable selection to analyze
+
+```{r}
+data_match <- var_selec_analysis(data_match_eda)
+```
+
+::: {style="text-align: justify"}
+The variables with not enough events (<10) were excluded from the analysis. These were smoker, alcoholism, dislip, ecv, cancer, hiv, immunsupressive_dis, erc, hemodialisis, asma_bronquial, epc, shock_septico, disf_multiorg, f_hepatica_aguda, f_multiorganica, perdida_de_peso, poliuria, polidipysia, polifagia, sensorio, and antibiotics.
+:::
+
+## Table 1. Demographic and clinical characteristics of patients
+
+```{r}
+# Demographic characteristics and clinical history
+tbl_1.1 <- data_match |>
+  tbl_summary(
+    include = c(edad:len_hosp_stay),
+    by = t2dm,
+    percent = "column",
+    statistic = list(edad ~ "{mean} ({sd})"),
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_overall() |>
+  add_p(edad ~ "t.test",
+        test.args = all_tests("t.test") ~ list(var.equal = TRUE)) |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
+                stat_0 = "**All patients** (n = {N})",
+                p.value = "**p value**") |>
+  modify_spanning_header(c(stat_1, stat_2) ~ "**Type 2 Diabetes**")
+
+# Signs and symptoms
+tbl_1.2 <- data_match |>
+  tbl_summary(
+    include = c(fever:dolor_abdominal, t2dm),
+    by = t2dm,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_overall() |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+
+# Vital signs
+tbl_1.3 <- data_match |>
+  tbl_summary(
+    include = c(frecuencia_respiratoria:p_a_diastolica, t2dm),
+    by = t2dm,
+    percent = "column",
+    statistic = list(frecuencia_cardiaca ~ "{mean} ({sd})"),
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_overall() |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+```
+
+```{r}
+# Stack tables
+table_1 = tbl_stack(
+  list(tbl_1.1, tbl_1.2, tbl_1.3),
+  group_header = c(
+    "Demographic characteristics and clinical history",
+    "Signs and symtoms",
+    "Vital signs"
+  ),
+  quiet = TRUE
+) |>
+  modify_caption(
+    "**Table 1**. Demographic and clinical characteristics of the patients"
+    )
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_1 <- table_1 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+table_1
+```
+
+## Table 2. Laboratory findings and treatment of patients
+
+```{r}
+# Laboratory findings
+tbl_2.1 <- data_match |>
+  tbl_summary(
+    include = c(wbc:platelets.c, t2dm),
+    by = t2dm,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_overall() |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
+                stat_0 = "**All patients** (n = {N})",
+                p.value = "**p value**") |>
+  modify_spanning_header(all_stat_cols(stat_0 = FALSE) ~ "**Type 2 Diabetes**")
+
+# Blood gas findings
+tbl_2.2 <- data_match |>
+  tbl_summary(
+    include = c(saturacion_de_oxigeno:pao2.c, t2dm),
+    by = t2dm,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_overall() |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+
+# Treatments
+tbl_2.3 <- data_match |>
+  tbl_summary(
+    include = c(corticoides:pronacion, t2dm),
+    by = t2dm,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_overall() |>
+  add_p() |>
+  bold_p(t = 0.05) |> 
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+```
+
+```{r}
+# Stack tables
+table_2 = tbl_stack(
+  list(tbl_2.1, tbl_2.2, tbl_2.3),
+  group_header = c("Laboratory findings", "Blood gas findings", "Treatment"),
+  quiet = TRUE
+) |>
+  modify_caption("Table 2. Laboratory findings and treatment of patients")
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_2 <- table_2 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_2
+```
+
+## Table 3. Demographic and clinical characteristics of patients by T2DM
+
+### Patients with T2DM
+
+```{r}
+# Demographic characteristics and clinical history
+tbl_3.1 <-
+  data_match |> 
+  dplyr::filter(t2dm == "yes") |>
+  tbl_summary(
+    include = c(edad:obesity, hta, outcome),
+    by = outcome,
+    percent = "column",
+    statistic = list(edad ~ "{mean} ({sd})"),
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
+                p.value = "**p value**")
+
+# Signs and symptoms
+tbl_3.2 <-
+  data_match |> 
+  dplyr::filter(t2dm == "yes") |>
+  tbl_summary(
+    include = c(fever:dolor_abdominal, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+
+# Vital signs
+tbl_3.3 <-
+  data_match |> 
+  dplyr::filter(t2dm == "yes") |>
+  tbl_summary(
+    include = c(frecuencia_respiratoria:p_a_diastolica.c, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+```
+
+### Patients without T2DM
+
+```{r}
+# Demographic characteristics and clinical history
+tbl_3.4 <-
+  data_match |>
+  dplyr::filter(t2dm == "no") |>
+  tbl_summary(
+    include = c(edad:obesity, hta, outcome),
+    by = outcome,
+    percent = "column",
+    statistic = list(edad ~ "{mean} ({sd})"),
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
+                p.value = "**p value**")
+
+# Signs and symptoms
+tbl_3.5 <-
+  data_match |> 
+  dplyr::filter(t2dm == "no") |>
+  tbl_summary(
+    include = c(fever:dolor_abdominal, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+
+# Vital signs
+tbl_3.6 <-
+  data_match |> 
+  dplyr::filter(t2dm == "no") |>
+  tbl_summary(
+    include = c(frecuencia_respiratoria:p_a_diastolica.c, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+```
+
+```{r}
+# Merge tables
+tbl_3_p1 <- tbl_merge(
+  tbls = list(tbl_3.1, tbl_3.4),
+  tab_spanner = c("**Patients with T2DM**", "**Patients without T2DM**")
+)
+
+tbl_3_p2 <- tbl_merge(tbls = list(tbl_3.2, tbl_3.5)) |>
+  modify_spanning_header(everything() ~ NA_character_)
+
+tbl_3_p3 <- tbl_merge(tbls = list(tbl_3.3, tbl_3.6)) |>
+  modify_spanning_header(everything() ~ NA_character_)
+
+# Stack tables
+table_3 = tbl_stack(
+  list(tbl_3_p1, tbl_3_p2, tbl_3_p3),
+  group_header = c(
+    "Demographic characteristics and clinical history",
+    "Signs and symtoms",
+    "Vital signs"
+  ),
+  quiet = TRUE
+) |> 
+  modify_caption(
+    "**Table 3**. Demographic and clinical characteristics of the patients by T2DM")
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_3 <- table_3 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+table_3
+```
+
+## Table 4. Laboratory findings and treatment of patients by T2DM
+
+### Patients with T2DM
+
+```{r}
+# Laboratory findings
+tbl_4.1 <-
+  data_match |> 
+  dplyr::filter(t2dm == "yes") |>
+  tbl_summary(
+    include = c(wbc:platelets.c, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
+                p.value = "**p value**")
+
+# Blood gas findings
+tbl_4.2 <-
+  data_match |> 
+  dplyr::filter(t2dm == "yes") |>
+  tbl_summary(
+    include = c(saturacion_de_oxigeno:pao2.c, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+
+# Treatment
+tbl_4.3 <-
+  data_match |> 
+  dplyr::filter(t2dm == "yes") |>
+  tbl_summary(
+    include = c(corticoides:pronacion, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+```
+
+### Patients without T2DM
+
+```{r}
+# Laboratory findings
+tbl_4.4 <-
+  data_match |> 
+  dplyr::filter(t2dm == "no") |>
+  tbl_summary(
+    include = c(wbc:platelets.c, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
+                p.value = "**p value**")
+
+# Blood gas findings
+tbl_4.5 <-
+  data_match |> 
+  dplyr::filter(t2dm == "no") |>
+  tbl_summary(
+    include = c(saturacion_de_oxigeno:pao2.c, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+
+# Treatment
+tbl_4.6 <-
+  data_match |> 
+  dplyr::filter(t2dm == "no") |>
+  tbl_summary(
+    include = c(corticoides:pronacion, outcome),
+    by = outcome,
+    percent = "column",
+    digits = list(all_continuous() ~ c(1, 1))
+  ) |>
+  add_p() |>
+  bold_p(t = 0.05) |>
+  modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
+```
+
+```{r}
+# Merge tables
+tbl_4_p1 <- tbl_merge(
+  tbls = list(tbl_4.1, tbl_4.4),
+  tab_spanner = c("**Patients with T2DM**", "**Patients without T2DM**")
+)
+
+tbl_4_p2 <- tbl_merge(tbls = list(tbl_4.2, tbl_4.5)) |>
+  modify_spanning_header(everything() ~ NA_character_)
+
+tbl_4_p3 <- tbl_merge(tbls = list(tbl_4.3, tbl_4.6)) |>
+  modify_spanning_header(everything() ~ NA_character_)
+
+# Stack tables
+table_4 = tbl_stack(
+  list(tbl_4_p1, tbl_4_p2, tbl_4_p3),
+  group_header = c("Laboratory findings", "Blood gas findings", "Treatment"),
+  quiet = TRUE
+) |>
+  modify_caption("Table 4. Laboratory findings and treatment of patients")
+
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_4 <- table_4 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_4
+```
+
+## Table 5. Logistic regression
+
+::: {style="text-align: justify"}
+In the univariate analysis, variables that were self-reported or did not have enough events were eliminated; this will help to avoid *overfitting* in the subsequent multivariable analysis. Other variables such as sex, smoker, alcoholism, dislip, obesity, malestar_general, anosmia, disgeusia, emesis, diarrea, poliuria, polidipysia, sensorio, p_a_sistolica, p_a_diastolica, platelets.c, pafi_cal.c, antibiotics, corticoides, anticoagulantes, antipaludicos, pronacion, showed *no differences* between groups in the bivariate analysis (Tables 4 and 5).
+:::
+
+| Self-reported | Not enough event (\<10) |
+|-------------------------|-------------------------|
+| dolor_de_garganta, malestar_general, headache, anosmia, disgeusia, diarrea, emesis, astenia, dolor_abdominal, perdida_de_peso, sensorio, poliuria, polidipysia, polifagia. | smoker, alcoholism, dislip, ecv, cancer, hiv, immunsupressive_dis, erc, hemodialisis, asma_bronquial, epc, shock_septico, disf_multiorg, f_hepatica_aguda, f_multiorganica, perdida_de_peso, poliuria, polidipysia, polifagia, sensorio, antibiotics. |
+
+: Not analyzed variables
+
+```{r}
+# Patients with T2DM
+data_uv_dm <- var_selec_uv(data_match, "yes")
+
+# Patients without T2DM
+data_uv_nondm <- var_selec_uv(data_match, "no")
+```
+
+### Univariate models
+
+> 📝***NOTE:*** The variables included in the univariate regression analysis were selected based on the results of the bivariate analysis.
+
+#### Patients with T2DM
+
+```{r}
+table_s1.1_uv <- data_uv_dm |>
+  tbl_uvregression(
+    include = c(edad.c:pronacion),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      sex ~ "Sex",
+      hta ~ "Hypertension",
+      obesity ~ "Obesity",
+      fever ~ "Fever",
+      tos ~ "Dry cought",
+      taquipnea ~ "Tachypnea",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
+      p_a_sistolica.c ~ "SBP (mmHg)",
+      p_a_diastolica.c ~ "DBP (mmHg)",
+      wbc.c ~ "White-cells (×10^−9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
+      nlr.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      fio2.c ~ "FiO~2~ (%)",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio",
+      pao2.c ~ "PaO~2~",
+      corticoides ~ "Corticosteroids",
+      anticoagulantes ~ "Anticoagulants",
+      antipaludicos ~ "Antimalarials",
+      pronacion ~ "Pronation"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+#### Patients without T2DM
+
+```{r}
+table_s1.2_uv <- data_uv_nondm |>
+  tbl_uvregression(
+    include = c(edad.c:pronacion),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      sex ~ "Sex",
+      hta ~ "Hypertension",
+      obesity ~ "Obesity",
+      fever ~ "Fever",
+      tos ~ "Dry cought",
+      taquipnea ~ "Tachypnea",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
+      p_a_sistolica.c ~ "SBP (mmHg)",
+      p_a_diastolica.c ~ "DBP (mmHg)",
+      wbc.c ~ "White-cells (×10^−9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
+      nlr.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      fio2.c ~ "FiO~2~ (%)",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio",
+      pao2.c ~ "PaO~2~",
+      corticoides ~ "Corticosteroids",
+      anticoagulantes ~ "Anticoagulants",
+      antipaludicos ~ "Antimalarials",
+      pronacion ~ "Pronation"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+```{r}
+# Stack tables
+table_uv = tbl_merge(
+  list(table_s1.1_uv, table_s1.2_uv),
+  tab_spanner = c("**Patients with T2DM**", "**Patients without T2DM**"
+  )
+) |>
+  modify_caption("Table S1. Univariate logistic regression by T2DM")
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_s1 <- table_uv |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_s1
+```
+
+### Multivariable models
+
+#### Complete multivariable for patients with T2DM
+
+```{r}
+# T2DM model
+full_multivariable_dm <- glm(
+  outcome ~
+    edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
+    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
+    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
+    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    corticoides + anticoagulantes + antipaludicos + pronacion,
+  data = data_uv_dm,
+  family = binomial(link = "logit")
+) |>
+  tbl_regression(
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      sex ~ "Sex",
+      hta ~ "Hypertension",
+      obesity ~ "Obesity",
+      fever ~ "Fever",
+      tos ~ "Dry cought",
+      taquipnea ~ "Tachypnea",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
+      p_a_sistolica.c ~ "SBP (mmHg)",
+      p_a_diastolica.c ~ "DBP (mmHg)",
+      wbc.c ~ "White-cells (×10^−9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
+      nlr.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      fio2.c ~ "FiO~2~ (%)",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio",
+      pao2.c ~ "PaO~2~",
+      corticoides ~ "Corticosteroids",
+      anticoagulantes ~ "Anticoagulants",
+      antipaludicos ~ "Antimalarials",
+      pronacion ~ "Pronation"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  add_vif() |>
+  modify_header(estimate = "**Multivariable OR**", 
+                p.value = "**p value**", 
+                aGVIF ~ "**aGVIF**")
+```
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+# Model
+m1_dm = glm(
+  outcome ~
+    edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
+    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
+    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
+    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    corticoides + anticoagulantes + antipaludicos + pronacion,
+  data = data_uv_dm,
+  family = binomial(link = "logit")
+)
+
+# Visual check of model assumptions
+performance::check_model(m1_dm)
+
+# Model performance
+broom::glance(m1_dm)
+
+# Indices of model performance
+performance::model_performance(m1_dm)
+
+# Check for multicollinearity
+performance::check_collinearity(m1_dm)
+```
+
+```{r include=FALSE}
+# Model summaries
+epiDisplay::logistic.display(m1_dm, simplified = FALSE, crude = FALSE)
+```
+
+#### Complete multivariable for patients without T2DM
+
+```{r}
+# Non T2DM model
+full_multivariable_nondm <- glm(
+  outcome ~
+    edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
+    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
+    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
+    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    corticoides + anticoagulantes + antipaludicos + pronacion,
+  data = data_uv_nondm,
+  family = binomial(link = "logit")
+) |>
+  tbl_regression(
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      sex ~ "Sex",
+      hta ~ "Hypertension",
+      obesity ~ "Obesity",
+      fever ~ "Fever",
+      tos ~ "Dry cought",
+      taquipnea ~ "Tachypnea",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
+      p_a_sistolica.c ~ "SBP (mmHg)",
+      p_a_diastolica.c ~ "DBP (mmHg)",
+      wbc.c ~ "White-cells (×10^−9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
+      nlr.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      fio2.c ~ "FiO~2~ (%)",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio",
+      pao2.c ~ "PaO~2~",
+      corticoides ~ "Corticosteroids",
+      anticoagulantes ~ "Anticoagulants",
+      antipaludicos ~ "Antimalarials",
+      pronacion ~ "Pronation"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  add_vif() |>
+  modify_header(estimate = "**Multivariable OR**",
+                p.value = "**p value**",
+                aGVIF ~ "**aGVIF**")
+```
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+m1_non = glm(
+  outcome ~
+    edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
+    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
+    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
+    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    corticoides + anticoagulantes + antipaludicos + pronacion,
+  data = data_uv_nondm,
+  family = binomial(link = "logit")
+)
+
+# Visual check of model assumptions
+performance::check_model(m1_non)
+
+# Model performance
+broom::glance(m1_non)
+
+# Indices of model performance
+performance::model_performance(m1_non)
+
+# Check for multicollinearity
+performance::check_collinearity(m1_non)
+```
+
+```{r include=FALSE}
+# Model summaries
+epiDisplay::logistic.display(m1_non, simplified = FALSE, crude = FALSE)
+```
+
+```{r}
+# Stack tables
+table_mv = tbl_merge(
+  tbls = list(
+    table_s1.1_uv,
+    full_multivariable_dm,
+    table_s1.2_uv,
+    full_multivariable_nondm
+  )
+) |>
+  modify_spanning_header(
+    c(estimate_1:aGVIF_2) ~ "**Patients with T2DM**",
+    c(estimate_3:aGVIF_4) ~ "**Patients without T2DM**"
+  ) |> 
+  modify_footnote(everything() ~ NA, abbreviation = TRUE) |>
+  modify_table_body( ~ .x |> arrange(row_type == "glance_statistic")) |>
+  modify_footnote(
+    c(estimate_1, estimate_2, estimate_3, estimate_4) ~ "OR = Odds Ratio",
+    c(ci_1, ci_2, ci_3, ci_4) ~ "95% CI = 95% Confidence Interval",
+    c(GVIF_2, GVIF_4) ~ "GVIF = Generalized Variance Inflation Factor",
+    c(aGVIF_2, aGVIF_4) ~ "aGVIF = Adjusted GVIF or GVIF^[1/(2*df)]"
+  )
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_mv <- table_mv |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_mv
+```
+
+#### Multivariate reduced: backward for patients with T2DM
+
+```{r}
+backward_dm <- m1_dm |>
+  stats::step(direction = "backward", trace = FALSE)
+```
+
+```{r include=FALSE}
+# Summary
+summary(backward_dm)
+```
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+m2_dm <-
+  glm(
+    outcome ~ edad.c + hta + taquipnea + frecuencia_cardiaca.c + p_a_diastolica.c +
+      neutrofilos.c + saturacion_de_oxigeno.c + pao2.c + antipaludicos,
+    family = binomial(link = "logit"),
+    data = data_uv_dm
+  )
+
+# Visual check of model assumptions
+performance::check_model(m2_dm)
+
+# Model performance
+broom::glance(m2_dm)
+
+# Indices of model performance
+performance::model_performance(m2_dm)
+
+# Check for multicollinearity
+performance::check_collinearity(m2_dm)
+```
+
+```{r include=FALSE}
+# Model summaries
+epiDisplay::logistic.display(m2_dm, simplified = FALSE, crude = FALSE)
+```
+
+#### Multivariate reduced: backward for patients without T2DM
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+backward_non <- m1_non |>
+  stats::step(direction = "backward", trace = FALSE)
+```
+
+```{r include=FALSE}
+# Summary
+summary(backward_non)
+```
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+m2_non <-
+  glm(
+    outcome ~ edad.c + fever + tos + frecuencia_cardiaca.c + p_a_sistolica.c + 
+      linfocitos.c + nlr.c + platelets.c + saturacion_de_oxigeno.c + fio2.c + 
+      pafi.c + pao2.c + antipaludicos,
+    family = binomial(link = "logit"),
+    data = data_uv_nondm
+  )
+
+# Visual check of model assumptions
+performance::check_model(m2_non)
+
+# Model performance
+broom::glance(m2_non)
+
+# Indices of model performance
+performance::model_performance(m2_non)
+
+# Check for multicollinearity
+performance::check_collinearity(m2_non)
+```
+
+```{r include=FALSE}
+# Model summaries
+epiDisplay::logistic.display(m2_non, simplified = FALSE, crude = FALSE)
+```
+
+#### Parsimonious model for patients with T2DM
+
+::: {style="text-align: justify"}
+In these models, only those variables that were statistically significant in previous analyses or that are clinically relevant according to the available evidence will be included. In subsequent analyses, some of the following variables may be excluded due to the potential for multicollinearity and to avoid overfitting: p_a_sistolica.c, p_a_diastolic.c, wbc.c, neutrofilos.c, lymphocytes.c, nlr.c, fio2.c, and pao2.c. The exclusion of fever and cough is based on the observation that these symptoms lack specificity and are commonly observed in the context of most infections.
+:::
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+# Parsimonious formula
+m3_dm <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_dm
+  )
+
+# Visual check of model assumptions
+performance::check_model(m3_dm)
+
+# Model performance
+broom::glance(m3_dm)
+
+# Indices of model performance
+performance::model_performance(m3_dm)
+
+# Check for multicollinearity
+performance::check_collinearity(m3_dm)
+```
+
+```{r include=FALSE}
+# Model summaries
+epiDisplay::logistic.display(m3_dm, simplified = FALSE, crude = FALSE)
+```
+
+#### Parsimonious model for patients without T2DM
+
+```{r fig.height=10, fig.width=10, fig.align='center'}
+m3_non <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + nlr.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_nondm
+  )
+
+# Visual check of model assumptions
+performance::check_model(m3_non)
+
+# Model performance
+broom::glance(m3_non)
+
+# Indices of model performance
+performance::model_performance(m3_non)
+
+# Check for multicollinearity
+performance::check_collinearity(m3_non)
+```
+
+```{r include=FALSE}
+# Model summaries
+epiDisplay::logistic.display(m3_non, simplified = FALSE, crude = FALSE)
+```
+
+#### Final model for patients with T2DM
+
+```{r}
+table_5.1_uv <- data_uv_dm |>
+  tbl_uvregression(
+    include = c(
+      edad.c,
+      hta,
+      disnea,
+      frecuencia_cardiaca.c,
+      neutrofilos.c,
+      saturacion_de_oxigeno.c,
+      pafi.c
+    ),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+```{r}
+table_5.1_mv <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_dm
+  ) |>
+  tbl_regression(
+    conf.int = TRUE,
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
+```
+
+#### Final model for patients without T2DM
+
+```{r}
+table_5.2_uv <- data_uv_nondm |>
+  tbl_uvregression(
+    include = c(
+      edad.c,
+      hta,
+      disnea,
+      frecuencia_cardiaca.c,
+      neutrofilos.c,
+      saturacion_de_oxigeno.c,
+      pafi.c
+    ),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+```{r}
+table_5.2_mv <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_nondm
+  ) |>
+  tbl_regression(
+    conf.int = TRUE,
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
+```
+
+```{r}
+# Number of observations
+count.dm <- nrow(data_uv_dm)
+count.non <- nrow(data_uv_nondm)
+
+# Merge tables
+table_5 <-
+  tbl_merge(tbls = list(table_5.1_uv, table_5.1_mv,
+                        table_5.2_uv, table_5.2_mv)) |>
+  modify_spanning_header(list(
+    c(estimate_1:p.value_2) ~ "**Patients with T2DM** (N = {paste(count.dm)})",
+    c(estimate_3:p.value_4) ~ "**Patients without T2DM** (N = {paste(count.non)})"
+  )) |>
+  modify_footnote(everything() ~ NA, abbreviation = TRUE) |>
+  modify_footnote(
+    c(estimate_1, estimate_2, estimate_3, estimate_4) ~ "OR = Odds Ratio",
+    c(ci_1, ci_2, ci_3, ci_4) ~ "95% CI = 95% Confidence Interval"
+  ) |>
+  modify_caption("Table 5. Multivariable logistic regression by T2DM")
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_5 <- table_5 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_5
+```
+
+### Model comparison
+
+#### T2DM patient models
+
+```{r}
+# Compare performance of different models
+compare_performance(m1_dm, m2_dm, m3_dm, verbose = FALSE)
+
+# Radar plot
+plot(compare_performance(m1_dm, m2_dm, m3_dm, rank = TRUE, verbose = FALSE))
+
+# Likelihood Ratio Test
+lmtest::lrtest(m2_dm, m3_dm)
+```
+
+#### non-T2DM patient models
+
+```{r}
+# Compare performance of different models
+compare_performance(m1_non, m2_non, m3_non, verbose = FALSE)
+
+# Radar plot
+plot(compare_performance(m1_non, m2_non, m3_non, rank = TRUE, verbose = FALSE))
+
+# Likelihood Ratio Test
+lmtest::lrtest(m2_non, m3_non)
+```
+
+# Sensitivity analysis
+
+## Sensitivity to continuous data categorization
+
+::: {style="text-align: justify"}
+In this sensitivity analysis, the analyses will be repeated with **continuous data** to ensure that there are no differences in the conclusions. While the categorization of continuous variables has the disadvantage of loss of information, it has the advantage of assuming linearity and being easily interpreted by the non-specialized public.
+:::
+
+```{r}
+# Patients with T2DM
+data_sens_dm <- var_selec_sens(data_match, t2dm, "yes")
+
+# Patients without T2DM
+data_sens_nondm <- var_selec_sens(data_match, t2dm, "no")
+```
+
+### Patients with T2DM
+
+#### Univariate regression analysis
+
+```{r}
+table_sens_uv_dm <- data_sens_dm |>
+  tbl_uvregression(
+    include = c(edad:pao2),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca ~ "Heart rate (BPM)",
+      frecuencia_respiratoria ~ "Respiratory rate (BPM)",
+      p_a_sistolica ~ "SBP (mmHg)",
+      p_a_diastolica ~ "DBP (mmHg)",
+      wbc ~ "White-cells (×10^−9^/L)",
+      neutrofilos ~ "Neutrophils (×10^−9^/L)",
+      linfocitos ~ "Lymphocytes (×10^−9^/L)",
+      nlr ~ "NLR",
+      platelets ~ "Platelets (×10^−9^/L)",
+      saturacion_de_oxigeno ~ "SaO~2~",
+      fio2 ~ "FiO~2~ (%)",
+      pafi ~ "PaO~2~:FiO~2~ ratio",
+      pao2 ~ "PaO~2~"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+#### Multivariable regression analysis
+
+```{r}
+table_sens_mv_dm <-
+  glm(
+    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
+      saturacion_de_oxigeno + pafi,
+    family = binomial(link = "logit"),
+    data = data_sens_dm
+  ) |>
+  tbl_regression(
+    conf.int = TRUE,
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca ~ "Heart rate (BPM)",
+      neutrofilos ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno ~ "SaO~2~",
+      pafi ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
+```
+
+```{r include=FALSE}
+# Models
+final_model_dm <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_dm
+  )
+
+sens_model_dm <-
+  glm(
+    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
+      saturacion_de_oxigeno + pafi,
+    family = binomial(link = "logit"),
+    data = data_sens_dm
+  )
+
+# Comparison of the regression coefficients and their standard errors
+car::compareCoefs(final_model_dm, sens_model_dm, pvals = T)
+
+# Impact on the overall multiple degrees of freedom significance test
+car::Anova(final_model_dm, type = 3)
+car::Anova(sens_model_dm, type = 3)
+```
+
+### Patients without T2DM
+
+#### Univariate regression analysis with continuous data
+
+```{r}
+table_sens_uv_non <- data_sens_nondm |>
+  tbl_uvregression(
+    include = c(edad:pao2),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca ~ "Heart rate (BPM)",
+      frecuencia_respiratoria ~ "Respiratory rate (BPM)",
+      p_a_sistolica ~ "SBP (mmHg)",
+      p_a_diastolica ~ "DBP (mmHg)",
+      wbc ~ "White-cells (×10^−9^/L)",
+      neutrofilos ~ "Neutrophils (×10^−9^/L)",
+      linfocitos ~ "Lymphocytes (×10^−9^/L)",
+      nlr ~ "NLR",
+      platelets ~ "Platelets (×10^−9^/L)",
+      saturacion_de_oxigeno ~ "SaO~2~",
+      fio2 ~ "FiO~2~ (%)",
+      pafi ~ "PaO~2~:FiO~2~ ratio",
+      pao2 ~ "PaO~2~"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+#### Multivariable regression analysis with continuous data
+
+```{r}
+table_sens_mv_non <-
+  glm(
+    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
+      saturacion_de_oxigeno + pafi,
+    family = binomial(link = "logit"),
+    data = data_sens_nondm
+  ) |>
+  tbl_regression(
+    conf.int = TRUE,
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca ~ "Heart rate (BPM)",
+      neutrofilos ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno ~ "SaO~2~",
+      pafi ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
+```
+
+```{r include=FALSE}
+# Models
+final_model_non <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_nondm
+  )
+
+sens_model_non <-
+  glm(
+    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
+      saturacion_de_oxigeno + pafi,
+    family = binomial(link = "logit"),
+    data = data_sens_nondm
+  )
+
+# Comparison of the regression coefficients and their standard errors
+car::compareCoefs(final_model_non, sens_model_non, pvals = T)
+
+# Impact on the overall multiple degrees of freedom significance test
+car::Anova(final_model_non, type = 3)
+car::Anova(sens_model_non, type = 3)
+```
+
+```{r}
+# Number of observations
+counts.dm <- nrow(data_sens_dm)
+counts.non <- nrow(data_sens_nondm)
+
+# Merge tables
+table_s2 <-
+  tbl_merge(tbls = list(
+    table_sens_uv_dm,
+    table_sens_mv_dm,
+    table_sens_uv_non,
+    table_sens_mv_non
+  )) |>
+  modify_spanning_header(list(
+    c(estimate_1:p.value_2) ~ "**Patients with T2DM** (N = {paste(counts.dm)})",
+    c(estimate_3:p.value_4) ~ "**Patients without T2DM** (N = {paste(counts.non)})"
+  )) |>
+  modify_footnote(everything() ~ NA, abbreviation = TRUE) |>
+  modify_footnote(
+    c(estimate_1, estimate_2, estimate_3, estimate_4) ~ "OR = Odds Ratio",
+    c(ci_1, ci_2, ci_3, ci_4) ~ "95% CI = 95% Confidence Interval"
+  ) |>
+  modify_caption("Table S2. Sensitivity to continuous data categorization")
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_s2 <- table_s2 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_s2
+```
+
+## Sensitivity to outliers and influential observations
+
+::: {style="text-align: justify"}
+This is an analysis of sensitivity to outliers and/or influential observations, which may involve removing those observations, evaluating the effects in the model, and re-evaluating the remaining observations.
+:::
+
+### Patients with T2DM
+
+#### Outlier identification
+
+```{r}
+final_model_dm <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_dm
+  )
+
+# Outlier test
+car::outlierTest(final_model_dm, n.max = Inf)
+
+# Extract Studentized residuals
+rstudent.dm <- rstudent(final_model_dm)
+
+# Use numeric cutoff from outlier test to identify outliers
+outliers.dm <- rstudent.dm > 2
+rstudent.dm[outliers.dm]
+```
+
+```{r}
+# Identify outlier observations
+data_uv_nondm[c("144"),
+              c("edad.c", "hta", "disnea", "frecuencia_cardiaca.c", 
+                "neutrofilos.c", "saturacion_de_oxigeno.c", "pafi.c")]
+```
+
+```{r fig.align='center'}
+# Plot Studentized residuals vs. fitted values
+car::residualPlots(
+  final_model_dm,
+  pch = 20,
+  smooth = list(col = "tomato"),
+  col = "gray55",
+  fitted = TRUE,
+  terms = ~ 1,
+  tests = FALSE,
+  quadratic = FALSE,
+  type = "rstudent"
+)
+
+# Highlight outliers
+points(fitted(final_model_dm)[outliers.dm],
+       rstudent.dm[outliers.dm],
+       pch = 20,
+       cex = 2)
+```
+
+#### Influential observations identification
+
+```{r fig.height=6, fig.align='center'}
+# Studentized residuals and hat values
+car::influenceIndexPlot(
+  final_model_dm,
+  vars = c("Studentized", "hat"),
+  id = TRUE,
+  main = "Residuals and leverage"
+)
+```
+
+```{r fig.align='center'}
+# Cook’s distance
+car::influenceIndexPlot(final_model_dm,
+                        vars = "Cook",
+                        id = TRUE,
+                        main = "Cook's distance")
+```
+
+```{r}
+# Extract Cook’s distance
+cook.dm <- cooks.distance(final_model_dm)
+
+# Subjective cutoff from figure
+sub.cook.dm <- cook.dm  > 0.03
+
+# View the extreme Cook's distance values
+cook.dm[sub.cook.dm]
+```
+
+```{r}
+# Extract DFBetas
+dfbetas.dm <- dfbetas(final_model_dm)
+
+# Standard cutoff for DFBeta
+sub.dfbetas.dm <- apply(abs(dfbetas.dm) > 0.2, 1, any)
+
+# View the extreme DFBetas
+dfbetas.dm[sub.dfbetas.dm, ]
+```
+
+```{r collapse=TRUE}
+# Put it all together
+influential_obs.dm <- outliers.dm | sub.cook.dm | sub.dfbetas.dm
+sum(influential_obs.dm)
+
+# Identify influential observations
+influential_obs.dm.true <- influential_obs.dm[influential_obs.dm]
+influential_obs.dm.true
+```
+
+### Patients without T2DM
+
+#### Outlier identification
+
+```{r}
+final_model_non <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_nondm
+  )
+
+# Outlier test
+car::outlierTest(final_model_non, n.max = Inf)
+
+# Extract Studentized residuals
+rstudent.non <- rstudent(final_model_non)
+
+# Extract Studentized residuals
+rstudent.non <- rstudent(final_model_non)
+
+# Use numeric cutoff from outlier test to identify outliers
+outliers.non <- rstudent.non > 2
+rstudent.non[outliers.non]
+```
+
+```{r}
+# Identify outlier observations
+data_uv_nondm[c("560", "608"),
+              c("edad.c", "hta", "disnea", "frecuencia_cardiaca.c", 
+                "neutrofilos.c", "saturacion_de_oxigeno.c", "pafi.c")]
+```
+
+```{r fig.align='center'}
+# Plot Studentized residuals vs. fitted values
+car::residualPlots(
+  final_model_non,
+  pch = 20,
+  smooth = list(col = "tomato"),
+  col = "gray55",
+  fitted = TRUE,
+  terms = ~ 1,
+  tests = FALSE,
+  quadratic = FALSE,
+  type = "rstudent"
+)
+
+# Highlight outliers
+points(fitted(final_model_non)[outliers.non],
+       rstudent.non[outliers.non],
+       pch = 20,
+       cex = 2)
+```
+
+#### Influential observations identification
+
+```{r fig.height=6, fig.align='center'}
+# Studentized residuals and hat values
+car::influenceIndexPlot(
+  final_model_non,
+  vars = c("Studentized", "hat"),
+  id = TRUE,
+  main = "Residuals and leverage"
+)
+```
+
+```{r fig.align='center'}
+# Cook’s distance
+car::influenceIndexPlot(final_model_non,
+                        vars = "Cook",
+                        id = TRUE,
+                        main = "Cook's distance")
+```
+
+```{r}
+# Extract Cook’s distance
+cook.non <- cooks.distance(final_model_non)
+
+# Subjective cutoff from figure
+sub.cook.non <- cook.non > 0.015
+
+# View the extreme Cook's distance values
+cook.non[sub.cook.non]
+```
+
+```{r}
+# Extract DFBetas
+dfbetas.non <- dfbetas(final_model_non)
+
+# Standard cutoff for DFBeta
+sub.dfbetas.non <- apply(abs(dfbetas.non) > 0.2, 1, any)
+
+# View the extreme DFBetas
+dfbetas.non[sub.dfbetas.non, ]
+```
+
+```{r}
+# Put it all together
+influential_obs.non <- outliers.non| sub.cook.non | sub.dfbetas.non
+sum(influential_obs.non)
+
+# Identify influential observations
+influential_obs.non.true <- influential_obs.non[influential_obs.non]
+influential_obs.non.true
+```
+
+::: {style="text-align: justify"}
+We performed a sensitivity analysis and our results did not change significantly except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil count did so for non-T2DM patients. In addition, we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. Although the number of the latter decreased (N=446).
+:::
+
+# Dimensional reduction
+
+::: {style="text-align: justify"}
+Principal Component Analysis (PCA) is an excellent technique for reducing data complexity **before** applying other analytical methods, such as linear regression, k-means clustering, and random forest classification. Integrating PCA with other methods enhances data analysis, model building, and interpretation, resulting in more accurate and efficient results. The choice between PCA and factor analysis depends on the objectives of the analysis.
+:::
+
+## Principal Component Analysis (PCA)
+
+::: {style="text-align: justify"}
+The PCA is a statistical technique that reduces the dimensionality of a dataset. This process transforms high-dimensional (complex or large) data sets into simpler (smaller) data sets while preserving important information. It helps to remove noise and redundancy from the data set, making the true patterns more pronounced and easier to analyze. With fewer dimensions, it's possible to visually explore and understand complex data sets, focusing on the most relevant features. By identifying the principal components, it's possible to focus on the most influential variables or individuals driving the trends and patterns in the data. This significantly reduces the complexity of interpreting data and makes it easier to explore and visualize. The output of PCA includes the variance explained by each principal component, which helps to understand the importance of each component in the analysis. This is crucial for making informed decisions based on the data. Furthermore, this process is crucial for more effectively analyzing data. The application of PCA can facilitate the acceleration of learning algorithms employed in data analysis, thereby enabling a more efficient and faster process. A reduction in data volume will result in a decrease in the storage and computational resources required. PCA is not merely a mathematical technique; it's a strategic approach to dealing with data in the most efficient way possible.
+:::
+
+> 📝***NOTE:*** PCA only works with numerical values.
+
+```{r}
+# Patients with T2DM
+old_dim.dm <- PCA_data_select(data_match, t2dm, "yes")
+```
+
+```{r}
+# Patients without T2DM
+old_dim.non <- PCA_data_select(data_match, t2dm, "no")
+```
+
+::: {style="text-align: justify"}
+The first step is to utilize the `prcomp()` function from the `stats` package to perform PCA, with the parameters **centered** and **scaled**. This function is robust and offers a standardized method to perform PCA with ease, providing the user with the principal components, variance captured, and more. The next step is to examine the summary with the `summary()` or `get_eigenvalue()` functions. This will allow you to understand the proportion of variance represented in each principal component and determine which variables contribute the most to them. This information allows us to evaluate the importance and contribution of each principal component.
+::: 
+
+> 📝***NOTE:*** The eigenvalues represent the variance explained by each principal component.
+
+::: {style="text-align: justify"}
+Explore the mathematical concepts of eigenvalues and eigenvectors. Eigenvalues measure the variance captured by each principal component. A higher eigenvalue indicates that the component accounts for a greater proportion of the variance in the data set. This allows for the determination of which principal components are worth keeping for analysis. Eigenvectors, on the other hand, define the direction of the principal components, which are formed by the combination of the original variables. In addition, eigenvectors are perpendicular (orthogonal) to each other, representing a new axis in data space that is aligned with the maximum variance. This orthogonal property ensures that the principal components are independent of each other. The eigenvalues and eigenvectors operate in tandem within PCA to transform and simplify the data set. By identifying new axes (eigenvectors) that maximize variance (eigenvalues), PCA allows the data to be viewed from a different perspective, focusing on the most informative aspects.
+:::
+
+## Perform PCA and analyze the eigenvalues/variances
+
+```{r}
+# Scaled (standardization) for patients with T2DM
+new_dim.dm <- stats::prcomp(old_dim.dm[1:14], scale. = TRUE, center = TRUE)
+```
+
+```{r}
+# Scaled (standardization) for patients without T2DM
+new_dim.non <- stats::prcomp(old_dim.non[1:14], scale. = TRUE, center = TRUE)
+```
+
+```{r}
+# Extract the eigenvalues of the new dimensions of patients with T2DM
+factoextra::get_eigenvalue(new_dim.dm) |>
+  mutate(across(where(is.numeric), round, 2))
+```
+
+```{r}
+# Extract the eigenvalues of the new dimensions of patients without T2DM
+factoextra::get_eigenvalue(new_dim.non) |>
+  mutate(across(where(is.numeric), round, 2))
+```
+
+::: {style="text-align: justify"}
+To visualize the PCA, the `ggplot2` and `factoextra` packages can be utilized. Plots such as scree plots can be used to understand the variance explained (eigenvalues) by each component or biplots to understand the relationship between variables and components and how the data is distributed across these new dimensions (principal components). This helps to reveal patterns and clusters. A scree plot assesses the contribution of each component to the total variance. It determines the optimal number of principal components to keep, streamlines the analysis by focusing on the most important components.
+::: 
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Plot variances of new dimensions of patients with T2DM
+fviz_eig(
+  new_dim.dm,
+  addlabels = TRUE,
+  choice = "variance",
+  barfill = "#99CC00FF",
+  barcolor = "#99CC00FF",
+  xlab = "New dimensions of patients with T2DM"
+)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Plot variances of new dimensions of patients without T2DM
+fviz_eig(
+  new_dim.non,
+  addlabels = TRUE,
+  choice = "variance",
+  barfill = "#99CC00FF",
+  barcolor = "#99CC00FF",
+  xlab = "New dimensions of patients without T2DM"
+)  
+```
+
+### Variables for patients with T2DM
+
+```{r}
+# Extract the results for the variables
+var.dm <- get_pca_var(new_dim.dm)
+
+# Coordinates for the variables
+head(var.dm$coord, 5)
+
+# Correlations between variables and dimensions
+head(var.dm$cor, 5)
+
+# Quality of representation (Cos2) for the  variables on the dimensions
+head(var.dm$cos2, 5)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Correlation matrix - Cos2 for the variables
+my_ggcorrplor(var.dm$cos2)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Cos2 plot for the variables on the dimensions 1 and 2
+fviz_cos2(new_dim.dm, choice = "var", axes = 1:2)
+```
+
+```{r}
+# Plot of 10 variables with highest cos2 on PC1 and PC2
+a <- fviz_cos2(new_dim.dm,
+               choice = "var",
+               axes = 1:2,
+               top = 10)
+
+# Plot of 10 variables with highest cos2 on PC3 and PC4
+b <- fviz_cos2(new_dim.dm,
+               choice = "var",
+               axes = 3:4,
+               top = 10)
+
+# Correlations circle and color by cos2 values
+c <- fviz_pca_var(
+  new_dim.dm,
+  col.var.dm = "cos2",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  repel = TRUE
+) # repel = TRUE avoid text overlapping
+```
+
+```{r}
+# Contributions of the variables on the dimensions
+head(var.dm$contrib, 5)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Correlation matrix - contributions of the variables
+corrplot(var.dm$contrib, is.corr = FALSE)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Contribution plot of the top 10 variables on PC1
+fviz_contrib(new_dim.dm,
+             choice = "var",
+             axes = 1,
+             top = 10)
+
+# Contribution plot of the top 10 variables on PC2
+fviz_contrib(new_dim.dm,
+             choice = "var",
+             axes = 2,
+             top = 10)
+```
+
+```{r}
+# Plot of 10 variables with the highest contribution on PC1 and PC2
+d <- fviz_contrib(new_dim.dm,
+                  choice = "var",
+                  axes = 1:2,
+                  top = 10)
+
+# Plot of 10 variables with the highest contribution on PC3 and PC4
+e <- fviz_contrib(new_dim.dm,
+                  choice = "var",
+                  axes = 3:4,
+                  top = 10)
+
+# Correlations circle and color by contributions values
+f <- fviz_pca_var(
+  new_dim.dm,
+  col.var.dm = "contrib",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  repel = TRUE
+)
+```
+
+```{r fig.height=12, fig.width=12, fig.align='center'}
+# Arrange multiple plots
+pca_dm <- ggpubr::ggarrange(a, d, b, e, c, f,
+                             ncol = 2, nrow = 3,
+                             labels = c("A)", "B)", "C)", "D)", "E)", "F)"),
+                             legend = "right")
+
+annotate_figure(pca_dm,
+                top = text_grob("PCA of patients with T2DM",
+                                face = "bold",
+                                size = 16))
+```
+
+### Variables for patients without T2DM
+
+```{r}
+# Extract the results for the variables
+var.non <- get_pca_var(new_dim.non)
+
+# Coordinates for the variables
+head(var.non$coord, 5)
+
+# Correlations between variables and dimensions
+head(var.non$cor, 5)
+
+# Quality of representation (Cos2) for the  variables on the dimensions
+head(var.non$cos2, 5)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Correlation matrix - Cos2 for the variables
+my_ggcorrplor(var.non$cos2)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Cos2 plot for the variables on dimensions 1 and 2
+fviz_cos2(new_dim.non, choice = "var", axes = 1:2)
+```
+
+```{r}
+# Plot of 10 variables with highest cos2 on PC1 and PC2
+a <- fviz_cos2(new_dim.non,
+               choice = "var",
+               axes = 1:2,
+               top = 10)
+
+# Plot of 10 variables with highest cos2 on PC3 and PC4
+b <- fviz_cos2(new_dim.non,
+               choice = "var",
+               axes = 3:4,
+               top = 10)
+
+# Correlations circle and color by cos2 values
+c <- fviz_pca_var(
+  new_dim.non,
+  col.var.non = "cos2",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  repel = TRUE
+) # repel = TRUE avoid text overlapping
+```
+
+```{r}
+# Contributions of the variables on the dimensions
+head(var.non$contrib, 5)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Correlation matrix - contributions of the variables
+corrplot(var.non$contrib, is.corr = FALSE)
+```
+
+```{r fig.height=7, fig.width=7, fig.align='center'}
+# Contribution plot of the top 10 variables on PC1
+fviz_contrib(new_dim.non,
+             choice = "var",
+             axes = 1,
+             top = 10)
+
+# Contribution plot of the top 10 variables on PC2
+fviz_contrib(new_dim.non,
+             choice = "var",
+             axes = 2,
+             top = 10)
+```
+
+```{r}
+# Plot of 10 variables with the highest contribution on PC1 and PC2
+d <- fviz_contrib(new_dim.non,
+                  choice = "var",
+                  axes = 1:2,
+                  top = 10)
+
+# Plot of 10 variables with the highest contribution on PC3 and PC4
+e <- fviz_contrib(new_dim.non,
+                  choice = "var",
+                  axes = 3:4,
+                  top = 10)
+
+# Correlations circle and color by contributions values
+f <- fviz_pca_var(
+  new_dim.dm,
+  col.var.dm = "contrib",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  repel = TRUE
+)
+```
+
+```{r fig.height=12, fig.width=12, fig.align='center'}
+# Arrange multiple plots
+pca_non <- ggpubr::ggarrange(a, d, b, e, c, f,
+                             ncol = 2, nrow = 3,
+                             labels = c("A)", "B)", "C)", "D)", "E)", "F)"),
+                             legend = "right")
+
+annotate_figure(pca_non,
+                top = text_grob("PCA of patients without T2DM",
+                                face = "bold",
+                                size = 16))
+```
+
+### Individuals with T2M
+
+```{r results='hide', fig.height=10, fig.width=10, fig.align='center'}
+# Extract results for the individuals
+ind <- get_pca_ind(new_dim.dm)
+
+# Coordinates for the individuals
+head(ind$coord, 5)
+
+# Cos2 of the individuals on dimensions
+head(ind$cos2, 5)
+```
+
+```{r}
+# Plot of 30 individuals with the highest cos2 on PC1 and PC2
+a <- fviz_cos2(new_dim.dm,
+               choice = "ind",
+               axes = 1:2,
+               top = 30)
+
+# Plot of 30 individuals with the highest cos2 on PC3 and PC4
+b <- fviz_cos2(new_dim.dm,
+               choice = "ind",
+               axes = 3:4,
+               top = 30)
+
+# Correlations circle and color by cos2 values
+c <- fviz_pca_ind(
+  new_dim.dm,
+  col.ind = "cos2",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  repel = TRUE
+)
+```
+
+```{r}
+# Contributions of the individuals on dimensions
+head(ind$contrib, 5)
+```
+
+```{r}
+# Plot of 30 individuals with the highest contribution on PC1 and PC2
+d <- fviz_contrib(new_dim.dm,
+                  choice = "ind",
+                  axes = 1:2,
+                  top = 30)
+
+# Plot of 30 individuals with the highest contribution on PC3 and PC4
+e <- fviz_contrib(new_dim.dm,
+                  choice = "ind",
+                  axes = 3:4,
+                  top = 30)
+
+# Correlations circle and color by contributions values
+f <- fviz_pca_ind(
+  new_dim.dm,
+  col.ind = "contrib",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26")
+)
+```
+
+```{r fig.height=12, fig.width=12, fig.align='center'}
+# Arrange multiple plots
+pca_ind.dm <- ggpubr::ggarrange(a, d, b, e, c, f, 
+                                ncol = 2, nrow = 3, 
+                                labels = c("A)", "B)", "C)", "D)", "E)", "F)"), 
+                                legend = "right")
+
+annotate_figure(pca_ind.dm,
+                top = text_grob("Patients with T2DM",
+                                face = "bold",
+                                size = 16))
+```
+
+```{r}
+# Plot of individuals and color by outcome on PC1 and PC2
+ind.graph <- fviz_pca_ind(
+  new_dim.dm,
+  axes = 1:2,
+  geom.ind = "point",
+  col.ind = old_dim.dm$outcome,
+  palette = "igv",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  ggtheme = theme_pubr()
+)
+
+a <- ggpubr::ggpar(
+  ind.graph,
+  title = element_blank(),
+  xlab = "PC1 (22.8%)",
+  ylab = "PC2 (12.2%)",
+  legend.title = "Group",
+  legend = "right",
+  font.legend = c(12, "black")
+  )
+
+# Plot of individuals and color by outcome on PC3 and PC4
+ind.graph <- fviz_pca_ind(
+  new_dim.dm,
+  axes = 3:4,
+  geom.ind = "point",
+  col.ind = old_dim.dm$outcome,
+  palette = "igv",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  ggtheme = theme_pubr()
+  )
+
+b <- ggpubr::ggpar(
+  ind.graph,
+  title = element_blank(),
+  xlab = "PC3 (11.5%)",
+  ylab = "PC2 (9.9%)",
+  legend.title = "Group",
+  legend = "right",
+  font.legend = c(12, "black")
+  )
+```
+
+```{r fig.height=6, fig.width=14, fig.align='center'}
+# Arrange multiple plots
+ggpubr::ggarrange(
+  a, b,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE
+  )
+```
+
+### Individuals without T2M
+
+```{r results='hide', fig.height=10, fig.width=10, fig.align='center'}
+# Extract results for the individuals
+ind <- get_pca_ind(new_dim.non)
+
+# Coordinates for the individuals
+head(ind$coord, 5)
+
+# Cos2 of the individuals on dimensions
+head(ind$cos2, 5)
+```
+
+```{r}
+# Plot of 30 individuals with the highest cos2 on PC1 and PC2
+a <- fviz_cos2(new_dim.non,
+               choice = "ind",
+               axes = 1:2,
+               top = 30)
+
+# Plot of 30 individuals with the highest cos2 on PC3 and PC4
+b <- fviz_cos2(new_dim.non,
+               choice = "ind",
+               axes = 3:4,
+               top = 30)
+
+# Correlations circle and color by cos2 values
+c <- fviz_pca_ind(
+  new_dim.non,
+  col.ind = "cos2",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  repel = TRUE
+)
+```
+
+```{r}
+# Contributions of the individuals on dimensions
+head(ind$contrib, 5)
+```
+
+```{r}
+# Plot of 30 individuals with the highest contribution on PC1 and PC2
+d <- fviz_contrib(new_dim.non,
+                  choice = "ind",
+                  axes = 1:2,
+                  top = 30)
+
+# Plot of 30 individuals with the highest contribution on PC3 and PC4
+e <- fviz_contrib(new_dim.non,
+                  choice = "ind",
+                  axes = 3:4,
+                  top = 30)
+
+# Correlations circle and color by contributions values
+f <- fviz_pca_ind(
+  new_dim.non,
+  col.ind = "contrib",
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26")
+)
+```
+
+```{r fig.height=12, fig.width=12, fig.align='center'}
+# Arrange multiple plots
+pca_ind.non <- ggpubr::ggarrange(a, d, b, e, c, f, 
+                                ncol = 2, nrow = 3, 
+                                labels = c("A)", "B)", "C)", "D)", "E)", "F)"), 
+                                legend = "right")
+
+annotate_figure(pca_ind.non,
+                top = text_grob("Patients without T2DM",
+                                face = "bold",
+                                size = 16))
+```
+
+```{r}
+# Plot of individuals and color by outcome on PC1 and PC2
+ind.graph <- fviz_pca_ind(
+  new_dim.non,
+  axes = 1:2,
+  geom.ind = "point",
+  col.ind = old_dim.non$outcome,
+  palette = "igv",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  ggtheme = theme_pubr()
+)
+
+a <- ggpubr::ggpar(
+  ind.graph,
+  title = element_blank(),
+  xlab = "PC1 (22%)",
+  ylab = "PC2 (12.3%)",
+  legend.title = "Group",
+  legend = "right",
+  font.legend = c(12, "black")
+  )
+
+# Plot of individuals and color by outcome on PC3 and PC4
+ind.graph <- fviz_pca_ind(
+  new_dim.non,
+  axes = 3:4,
+  geom.ind = "point",
+  col.ind = old_dim.non$outcome,
+  palette = "igv",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  ggtheme = theme_pubr()
+  )
+
+b <- ggpubr::ggpar(
+  ind.graph,
+  title = element_blank(),
+  xlab = "PC3 (10.8%)",
+  ylab = "PC2 (10%)",
+  legend.title = "Group",
+  legend = "right",
+  font.legend = c(12, "black")
+  )
+```
+
+```{r fig.height=6, fig.width=14, fig.align='center'}
+# Arrange multiple plots
+ggpubr::ggarrange(
+  a, b,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE
+)
+```
+
+### Biplot of individuals and variables of patients with T2DM
+
+```{r}
+# Contributions on PC1 and PC2
+a.dm <- fviz_pca_biplot(
+  new_dim.dm,
+  # Dimensions 1 and 2
+  axes = 1:2,
+  # Individuals
+  col.ind = old_dim.dm$outcome,
+  geom.ind = "point",
+  col.var = "black",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  palette = "Set1",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  ggtheme = theme_pubr()
+  )
+
+# Plot parameters
+a1.dm <- ggpubr::ggpar(
+  a.dm,
+  title = element_blank(),
+  xlab = "PC1 (22.8%)",
+  ylab = "PC2 (12.2%)",
+  legend.title = "Group",
+  font.legend = c(12, "black")
+  )
+
+# Contributions on PC3 and PC4
+b.dm <- fviz_pca_biplot(
+  new_dim.dm,
+  # Dimensions 3 and 4
+  axes = 3:4,
+  # Individuals
+  col.ind = old_dim.dm$outcome,
+  geom.ind = "point",
+  col.var = "black",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  palette = "Set1",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  ggtheme = theme_pubr()
+  )
+
+# Plot parameters
+b1.dm <- ggpubr::ggpar(
+  b.dm,
+  title = element_blank(),
+  xlab = "PC3 (11.5%)",
+  ylab = "PC4 (9.9%)",
+  legend.title = "Group",
+  font.legend = c(12, "black")
+  )
+```
+
+```{r fig.height=6, fig.width=14, fig.align='center'}
+# Arrange multiple plots
+F1_dm <- ggpubr::ggarrange(
+  a1.dm, b1.dm,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE
+)
+
+# View
+F1_dm
+```
+
+### Biplot of individuals and variables of patients without T2DM
+
+```{r}
+# Contributions on PC1 and PC2
+a.non <- fviz_pca_biplot(
+  new_dim.non,
+  # Dimensions 1 and 2
+  axes = 1:2,
+  # Individuals
+  col.ind = old_dim.non$outcome,
+  geom.ind = "point",
+  col.var = "black",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  palette = "Set1",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  ggtheme = theme_pubr()
+)
+
+# Plot parameters
+a1.non <- ggpubr::ggpar(
+  a.non,
+  title = element_blank(),
+  xlab = "PC1 (22%)",
+  ylab = "PC2 (12.3%)",
+  legend.title = "Group",
+  font.legend = c(12, "black")
+)
+
+# Contributions on PC3 and PC4
+b.non <- fviz_pca_biplot(
+  new_dim.non,
+  # Dimensions 3 and 4
+  axes = 3:4,
+  # Individuals
+  col.ind = old_dim.non$outcome,
+  geom.ind = "point",
+  col.var = "black",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  palette = "Set1",
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  ggtheme = theme_pubr()
+)
+
+# Plot parameters
+b1.non <- ggpubr::ggpar(
+  b.non,
+  title = element_blank(),
+  xlab = "PC3 (10.8%)",
+  ylab = "PC4 (10%)",
+  legend.title = "Group",
+  font.legend = c(12, "black")
+)
+```
+
+```{r fig.height=6, fig.width=14, fig.align='center'}
+# Arrange multiple plots
+F1_non <- ggpubr::ggarrange(
+  a1.non, b1.non,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE
+)
+
+# View
+F1_non
+```
+
+```{r fig.height=11, fig.width=14, fig.align='center'}
+# Arrange multiple plots
+FS2 <- ggpubr::ggarrange(
+  a1.dm, b1.dm, a1.non, b1.non,
+  ncol = 2, nrow = 2,
+  labels = c("A)", "B)", "C)", "D)"),
+  legend = "bottom",
+  common.legend = TRUE
+)
+
+# View
+FS2
+```
+
+::: {style="text-align: justify"}
+The PCA has limitations, including **sensitivity to the scale of variables**. It's essential to standardize variables to have *unit variance* before conducting PCA to mitigate this issue. PCA also assumes **linearity**; if variables do not exhibit linear relationships, alternative dimensionality reduction methods like t-SNE or UMAP may be more suitable for non-linear data structures. The principal components (new dimensions) created by PCA are linear combinations of the original variables (original dimensions) and may lack direct interpretability, necessitating careful evaluation. Dimension reduction through PCA inevitably leads to some information loss. While the discarded components are less significant, they may still hold valuable insights. Recognizing these limitations is crucial as it does not lessen PCA's value but rather enhances its usefulness in guiding its application.
+It's recommended to perform PCA before K-means clustering because speeds up the clustering process and optimizes computational resources, especially on large datasets. The PCA optimizes clustering by reducing noise and redundant information, which helps K-means clustering focus on relevant features, leading to more accurate cluster assignments. Dimension reduction captures important information into few dimensions, this reduces the number of features and preserves most of the variation, making subsequent clustering more efficient and improves interpretation.
+:::
+
+## t-Distributed Stochastic Neighbor Embedding (t-SNE)
+
+### t-SNE of patients with T2DM
+
+```{r fig.align='center'}
+tsne_data.dm <- old_dim.dm |>
+  dplyr::mutate(ID = row_number())
+
+meta_numerical <- tsne_data.dm |>
+  dplyr::select(ID, outcome)
+
+tSNE_fit <- tsne_data.dm |>
+  dplyr::select(where(is.numeric)) |>
+  scale() |>
+  Rtsne()
+
+tSNE_df <- tSNE_fit$Y |>
+  as.data.frame() |>
+  rename(tSNE1 = "V1",
+         tSNE2 = "V2") |>
+  mutate(ID = row_number())
+
+tSNE_df <- tSNE_df |>
+  inner_join(meta_numerical, by = "ID")
+
+tSNE_df |>
+  ggplot(aes(x = tSNE1,
+             y = tSNE2,
+             color = outcome)) +
+  geom_point() +
+  scale_color_igv() +
+  labs(color = "Group") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        axis.line = element_line(color = "black"))
+```
+
+### t-SNE of patients without T2DM
+
+```{r fig.height=5, fig.width=8, fig.align='center'}
+tsne_data.non <- old_dim.non |>
+  dplyr::mutate(ID = row_number())
+
+meta_numerical <- tsne_data.non |>
+  dplyr::select(ID, outcome)
+
+tSNE_fit <- tsne_data.non |>
+  dplyr::select(where(is.numeric)) |>
+  scale() |>
+  Rtsne()
+
+tSNE_df <- tSNE_fit$Y |>
+  as.data.frame() |>
+  rename(tSNE1 = "V1",
+         tSNE2 = "V2") |>
+  mutate(ID = row_number())
+
+tSNE_df <- tSNE_df |>
+  inner_join(meta_numerical, by = "ID")
+
+tSNE_df |>
+  ggplot(aes(x = tSNE1,
+             y = tSNE2,
+             color = outcome)) +
+  geom_point() +
+  scale_color_igv() +
+  labs(color = "Group") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        axis.line = element_line(color = "black"))
+```
+
+# Save outputs
+
+All distances are in inches
+
+```{r echo=FALSE}
+outputs_dir <- "/Academic/COVID-19 proyects/COVID-19_DMII_ICA/COVID-19_ICA_CC/outputs/"
+```
+
+```{r}
+sect_properties <- prop_section(
+  type = "continuous",
+  page_margins = page_mar(bottom = 1, top = 1, right = 1, left = 1))
+```
+
+## Tables
+
+```{r}
+# Save tables
+save_as_docx(
+  flex_table_1,
+  path = stringr::str_glue(outputs_dir, "Table_1.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_2,
+  path = stringr::str_glue(outputs_dir, "Table_2.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_3,
+  path = stringr::str_glue(outputs_dir, "Table_3.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_4,
+  path = stringr::str_glue(outputs_dir, "Table_4.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_s1,
+  path = stringr::str_glue(outputs_dir, "Table_s1.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_5,
+  path = stringr::str_glue(outputs_dir, "Table_5.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_s1,
+  path = stringr::str_glue(outputs_dir, "Table_s2.docx"),
+  align = "center")
+```
+
+## Figures
+
+```{r}
+# Save supplementary figure 1 (EPS)
+ggsave(
+  plot = FS1,
+  filename = stringr::str_glue(outputs_dir, "FIG_S1.eps"),
+  width = 12,
+  height = 12,
+  units = "in")
+
+# Save supplementary figure 1 (PNG)
+ggsave(
+  plot = FS1,
+  filename = stringr::str_glue(outputs_dir, "FIG_S1.png"),
+  width = 12,
+  height = 12,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 1 (JPEG)
+ggsave(
+  plot = FS1,
+  filename = stringr::str_glue(outputs_dir, "FIG_S1.jpeg"),
+  width = 12,
+  height = 12,
+  dpi = 500,
+  units = "in")
+
+# Save supplementary figure 2 (EPS)
+ggsave(
+  plot = F1_dm,
+  filename = stringr::str_glue(outputs_dir, "FIG_S2.eps"),
+  width = 14,
+  height = 6,
+  units = "in")
+
+# Save supplementary figure 2 (PNG)
+ggsave(
+  plot = F1_dm,
+  filename = stringr::str_glue(outputs_dir, "FIG_S2.png"),
+  width = 14,
+  height = 6,
+  dpi = 500,
+  units = "in")
+
+# Save supplementary figure 2 (JPEG)
+ggsave(
+  plot = F1_dm,
+  filename = stringr::str_glue(outputs_dir, "FIG_S2.jpeg"),
+  width = 14,
+  height = 6,
+  dpi = 500,
+  units = "in")
+
+# Save supplementary figure 3 (EPS)
+ggsave(
+  plot = F1_non,
+  filename = stringr::str_glue(outputs_dir, "FIG_S3.eps"),
+  width = 14,
+  height = 6,
+  units = "in")
+
+# Save supplementary figure 3 (PNG)
+ggsave(
+  plot = F1_non,
+  filename = stringr::str_glue(outputs_dir, "FIG_S3.png"),
+  width = 14,
+  height = 6,
+  dpi = 500,
+  units = "in")
+
+# Save supplementary figure 3 (JPEG)
+ggsave(
+  plot = F1_non,
+  filename = stringr::str_glue(outputs_dir, "FIG_S3.jpeg"),
+  width = 14,
+  height = 6,
+  dpi = 500,
+  units = "in")
+```
