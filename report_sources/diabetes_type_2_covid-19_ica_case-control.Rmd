@@ -2,7 +2,12 @@
 title: "Risk factors associated with COVID-19 mortality in patients with type 2 diabetes - Case-Control"
 author: "Carlos Ballon-Salcedo & Kevin J. Paez"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  cleanrmd::html_document_clean:
+    theme: sakura
+    toc: true
+    toc-depth: 4
+    number_sections: false
 ---
 
 # Set global knitr options
@@ -110,7 +115,7 @@ my_flextable_theme <- function(x, bold_header = FALSE) {
 
 ## Remove missing values (>10% by variable)
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 clean_data <- clean_data |>
   dplyr::select(where( ~ sum(is.na(.)) < 90))
 ```
@@ -162,19 +167,13 @@ Potential risk factors associated with mortality caused by COVID-19 in patients 
 data_match_eda <- dictionary(data_match_eda)
 ```
 
-## Variable selection for Exploratory Data Analysis
-
-```{r}
-data_match_eda <- var_selec_eda(data_match_eda)
-```
-
 ## Exploratory Data Analysis (EDA)
 
 ::: {style="text-align: justify"}
-In this subsection we will see a preview of the descriptive statistics, some summary measures from our sample. How you visualize the distribution of a variable will depend on whether the variable is categorical or continuous. The continuous data can be measured and categorical/discrete data can be counted. To examine the distribution of a continuous variable, use a histogram. To examine the distribution of a categorical variable, use a bar chart
-
-Descriptive statistics help you describe your current data, while inferential statistics allow you to make predictions and informed decisions based on your data.
+In this subsection we will see a preview of the descriptive statistics, some summary measures from our sample. How you visualize the distribution of a variable will depend on whether the variable is categorical or continuous. To analyze the distribution of a continuous variable, begin with a histogram or density plot for a visual representation of the data distribution. For categorical variables, a bar chart or a pie/donut chart provides a clear comparison of different categories.  In cases where a categorical variable has few levels, consider using tables or boxplots for a more concise display of the data.
 :::
+
+> 📝***NOTE:*** Descriptive statistics help you describe your current data, while inferential statistics allow you to make predictions and informed decisions based on your data.
 
 ### Categorical variables
 
@@ -182,12 +181,34 @@ Descriptive statistics help you describe your current data, while inferential st
 A categorical variable is a variable that can take on one of a small set of values. These values can be character, logical, or factor values. According to the object classes, character class objects are the most flexible, while logic class objects are the most restrictive. Many categorical variables lack an intrinsic order, and thus, it is necessary to reorder them to create a more informative display.
 :::
 
-```{r, eval=FALSE}
-# Selection of factors
-categorical <- data_match_eda |> 
+```{r echo=TRUE, include=FALSE}
+# Factor selection
+categorical <- data_match_eda |>
   dplyr::select(where(is.factor), -matched_id)
 
-# Multiple tables
+# Multiple tables (relative frequencies) with lapply
+lapply(categorical, function(x)
+  round(prop.table(table(x)) * 100, 1))
+
+# Relative frequencies with tidyr and dplyr
+categorical_pivot <- categorical |>
+  tidyr::pivot_longer(everything(), names_to = "Variable", values_to = "Valor") |>
+  dplyr::group_by(Variable, Valor) |>
+  dplyr::summarise(n = n()) |>
+  tidyr::drop_na() |>
+  dplyr::mutate(Porcentaje = round(n / sum(n) * 100, 1))
+```
+
+```{r}
+# Variables with relative frequency less than 2.5%
+excluded_var <- categorical_pivot |>
+  dplyr::filter(Porcentaje < 2.5) |>
+  dplyr::distinct(Variable) |>
+  dplyr::pull()
+```
+
+```{r eval=FALSE}
+# Multiple tables by T2DM
 lapply(categorical, function(x)
   table(x, categorical$t2dm))
 ```
@@ -319,13 +340,23 @@ FS1_grey <- my_ggcorrplor_grey(corr)
 
 ## Variable selection to analyze
 
+::: {style="text-align: justify"}
+The variables with not enough events (<2.5%) were excluded from the analysis. These were alcoholism, antibiotics, asma_bronquial, cancer, disf_multiorg, dislip, ecv, epc, erc, f_hepatica_aguda, f_multiorganica, hemodialisis, hiv, immunsupressive_dis, perdida_de_peso, polidipysia, polifagia, poliuria, sensorio, and smoker. The variables ac_renal_failure, sepsis and shock_septico were also excluded due to possible misclassification bias.
+:::
+
 ```{r}
+# Select included variables
 data_match <- var_selec_analysis(data_match_eda)
 ```
 
-::: {style="text-align: justify"}
-The variables with not enough events (<10) were excluded from the analysis. These were smoker, alcoholism, dislip, ecv, cancer, hiv, immunsupressive_dis, erc, hemodialisis, asma_bronquial, epc, shock_septico, disf_multiorg, f_hepatica_aguda, f_multiorganica, perdida_de_peso, poliuria, polidipysia, polifagia, sensorio, and antibiotics.
-:::
+```{r}
+# Check included variables
+included_var <- colnames(data_match)
+
+# Check excluded variables
+dplyr::setdiff(excluded_var, included_var)
+#unique(excluded_var, included_var)
+```
 
 ## Table 1. Demographic and clinical characteristics of patients
 
@@ -2685,7 +2716,7 @@ tSNE_df |>
 
 All distances are in inches
 
-```{r echo=FALSE}
+```{r}
 outputs_dir <- "/Academic/COVID-19 proyects/COVID-19_DMII_ICA/COVID-19_ICA_CC/outputs/"
 ```
 
@@ -2720,17 +2751,17 @@ save_as_docx(
   align = "center")
 
 save_as_docx(
-  flex_table_s1,
-  path = stringr::str_glue(outputs_dir, "Table_s1.docx"),
-  align = "center")
-
-save_as_docx(
   flex_table_5,
   path = stringr::str_glue(outputs_dir, "Table_5.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_s1,
+  path = stringr::str_glue(outputs_dir, "Table_s1.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_s2,
   path = stringr::str_glue(outputs_dir, "Table_s2.docx"),
   align = "center")
 ```

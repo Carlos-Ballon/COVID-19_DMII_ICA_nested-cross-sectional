@@ -9,8 +9,6 @@ var_selec_analysis <- function(data) {
       obesity,
       t2dm,
       hta,
-      sepsis,
-      ac_renal_failure,
       len_hosp_stay,
       
       # Signs and symptoms
@@ -56,7 +54,6 @@ var_selec_analysis <- function(data) {
       saturacion_de_oxigeno.c,
       fio2,
       fio2.c,
-      
       pafi,
       pafi.c,
       pafi_cal,
