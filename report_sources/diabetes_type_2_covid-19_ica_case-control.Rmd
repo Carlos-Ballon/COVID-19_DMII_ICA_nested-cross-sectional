@@ -2,12 +2,23 @@
 title: "Risk factors associated with COVID-19 mortality in patients with type 2 diabetes - Case-Control"
 author: "Carlos Ballon-Salcedo & Kevin J. Paez"
 date: "`r Sys.Date()`"
-output:
-  cleanrmd::html_document_clean:
-    theme: sakura
+format: 
+  html:
     toc: true
     toc-depth: 4
-    number_sections: false
+    code-overflow: wrap
+    code-fold: true
+    code-tools: 
+      source: "https://github.com/Carlos-Ballon/COVID-19_DMII_ICA_Case-Control"
+    theme: 
+     light: flatly
+     dark: darkly
+    highlight-style: github
+editor: source
+editor_options: 
+  chunk_output_type: inline
+bibliography: grateful-refs.bib
+csl: vancouver.csl
 ---
 
 # Set global knitr options
@@ -113,7 +124,7 @@ my_flextable_theme <- function(x, bold_header = FALSE) {
 
 # Process data
 
-## Remove missing values (>10% by variable)
+## Remove missing values (\>10% by variable)
 
 ```{r eval=FALSE, include=FALSE}
 clean_data <- clean_data |>
@@ -156,7 +167,7 @@ This subsection converts categorical variables into factors and recode/clean val
 
 ::: {style="text-align: justify"}
 Potential risk factors associated with mortality caused by COVID-19 in patients with type II diabetes mellitus (T2DM) are presented, each factor/variable is labeled with a legend that indicates its clinical importance, accuracy, and number of events. This is see in the **dictionary** script.
-::: 
+:::
 
 -   Clinically important with enough evidence but with small number of events, shown as `\####`
 -   Clinically important with enough evidence and enough number of events, shown as `\###`
@@ -170,7 +181,7 @@ data_match_eda <- dictionary(data_match_eda)
 ## Exploratory Data Analysis (EDA)
 
 ::: {style="text-align: justify"}
-In this subsection we will see a preview of the descriptive statistics, some summary measures from our sample. How you visualize the distribution of a variable will depend on whether the variable is categorical or continuous. To analyze the distribution of a continuous variable, begin with a histogram or density plot for a visual representation of the data distribution. For categorical variables, a bar chart or a pie/donut chart provides a clear comparison of different categories.  In cases where a categorical variable has few levels, consider using tables or boxplots for a more concise display of the data.
+In this subsection we will see a preview of the descriptive statistics, some summary measures from our sample. How you visualize the distribution of a variable will depend on whether the variable is categorical or continuous. To analyze the distribution of a continuous variable, begin with a histogram or density plot for a visual representation of the data distribution. For categorical variables, a bar chart or a pie/donut chart provides a clear comparison of different categories. In cases where a categorical variable has few levels, consider using tables or boxplots for a more concise display of the data.
 :::
 
 > 📝***NOTE:*** Descriptive statistics help you describe your current data, while inferential statistics allow you to make predictions and informed decisions based on your data.
@@ -341,7 +352,7 @@ FS1_grey <- my_ggcorrplor_grey(corr)
 ## Variable selection to analyze
 
 ::: {style="text-align: justify"}
-The variables with not enough events (<2.5%) were excluded from the analysis. These were alcoholism, antibiotics, asma_bronquial, cancer, disf_multiorg, dislip, ecv, epc, erc, f_hepatica_aguda, f_multiorganica, hemodialisis, hiv, immunsupressive_dis, perdida_de_peso, polidipysia, polifagia, poliuria, sensorio, and smoker. The variables ac_renal_failure, sepsis and shock_septico were also excluded due to possible misclassification bias.
+The variables with not enough events (\<2.5%) were excluded from the analysis. These were alcoholism, antibiotics, asma_bronquial, cancer, disf_multiorg, dislip, ecv, epc, erc, f_hepatica_aguda, f_multiorganica, hemodialisis, hiv, immunsupressive_dis, perdida_de_peso, polidipysia, polifagia, poliuria, sensorio, and smoker. The variables ac_renal_failure, sepsis and shock_septico were also excluded due to possible misclassification bias.
 :::
 
 ```{r}
@@ -769,8 +780,8 @@ flex_table_4
 In the univariate analysis, variables that were self-reported or did not have enough events were eliminated; this will help to avoid *overfitting* in the subsequent multivariable analysis. Other variables such as sex, smoker, alcoholism, dislip, obesity, malestar_general, anosmia, disgeusia, emesis, diarrea, poliuria, polidipysia, sensorio, p_a_sistolica, p_a_diastolica, platelets.c, pafi_cal.c, antibiotics, corticoides, anticoagulantes, antipaludicos, pronacion, showed *no differences* between groups in the bivariate analysis (Tables 4 and 5).
 :::
 
-| Self-reported | Not enough event (\<10) |
-|-------------------------|-------------------------|
+| Self-reported                                                                                                                                                              | Not enough event (\<10)                                                                                                                                                                                                                               |
+|------------------------------------|------------------------------------|
 | dolor_de_garganta, malestar_general, headache, anosmia, disgeusia, diarrea, emesis, astenia, dolor_abdominal, perdida_de_peso, sensorio, poliuria, polidipysia, polifagia. | smoker, alcoholism, dislip, ecv, cancer, hiv, immunsupressive_dis, erc, hemodialisis, asma_bronquial, epc, shock_septico, disf_multiorg, f_hepatica_aguda, f_multiorganica, perdida_de_peso, poliuria, polidipysia, polifagia, sensorio, antibiotics. |
 
 : Not analyzed variables
@@ -993,7 +1004,7 @@ epiDisplay::logistic.display(m1_dm, simplified = FALSE, crude = FALSE)
 #### Complete multivariable for patients without T2DM
 
 ```{r}
-# Non T2DM model
+# Non-T2DM model
 full_multivariable_nondm <- glm(
   outcome ~
     edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
@@ -1435,7 +1446,7 @@ compare_performance(m1_non, m2_non, m3_non, verbose = FALSE)
 # Radar plot
 plot(compare_performance(m1_non, m2_non, m3_non, rank = TRUE, verbose = FALSE))
 
-# Likelihood Ratio Test
+# Likelihood-Ratio Test (LRT)
 lmtest::lrtest(m2_non, m3_non)
 ```
 
@@ -1903,6 +1914,50 @@ influential_obs.non.true
 We performed a sensitivity analysis and our results did not change significantly except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil count did so for non-T2DM patients. In addition, we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. Although the number of the latter decreased (N=446).
 :::
 
+# Concordance statistic
+
+```{r}
+# T2DM model
+survival::concordance(final_model_dm)
+```
+
+```{r}
+# T2DM sensitivity model
+survival::concordance(sens_model_dm)
+```
+
+```{r}
+# Non-T2DM model
+survival::concordance(final_model_non)
+#epiDisplay::lroc(final_model_non)$auc
+```
+
+```{r}
+# Non-T2DM sensitivity model
+survival::concordance(sens_model_non)
+```
+
+::: {style="text-align: justify"}
+The concordance statistic was 0.78 for T2DM model and 0.77 for non-T2DM model. Sensibility analysis showed a value of 0.81 and 0.80 for T2DM model and non-T2DM model, respectively.
+:::
+
+# Goodness-of-fit
+
+## Hosmer-Lemeshow test
+
+```{r}
+
+```
+
+## Calibration plot
+
+```{r}
+
+```
+
+::: {style="text-align: justify"}
+:::
+
 # Dimensional reduction
 
 ::: {style="text-align: justify"}
@@ -1929,7 +1984,7 @@ old_dim.non <- PCA_data_select(data_match, t2dm, "no")
 
 ::: {style="text-align: justify"}
 The first step is to utilize the `prcomp()` function from the `stats` package to perform PCA, with the parameters **centered** and **scaled**. This function is robust and offers a standardized method to perform PCA with ease, providing the user with the principal components, variance captured, and more. The next step is to examine the summary with the `summary()` or `get_eigenvalue()` functions. This will allow you to understand the proportion of variance represented in each principal component and determine which variables contribute the most to them. This information allows us to evaluate the importance and contribution of each principal component.
-::: 
+:::
 
 > 📝***NOTE:*** The eigenvalues represent the variance explained by each principal component.
 
@@ -1963,7 +2018,7 @@ factoextra::get_eigenvalue(new_dim.non) |>
 
 ::: {style="text-align: justify"}
 To visualize the PCA, the `ggplot2` and `factoextra` packages can be utilized. Plots such as scree plots can be used to understand the variance explained (eigenvalues) by each component or biplots to understand the relationship between variables and components and how the data is distributed across these new dimensions (principal components). This helps to reveal patterns and clusters. A scree plot assesses the contribution of each component to the total variance. It determines the optimal number of principal components to keep, streamlines the analysis by focusing on the most important components.
-::: 
+:::
 
 ```{r fig.height=7, fig.width=7, fig.align='center'}
 # Plot variances of new dimensions of patients with T2DM
@@ -1974,7 +2029,7 @@ fviz_eig(
   barfill = "#99CC00FF",
   barcolor = "#99CC00FF",
   xlab = "New dimensions of patients with T2DM"
-)
+  )
 ```
 
 ```{r fig.height=7, fig.width=7, fig.align='center'}
@@ -1986,7 +2041,7 @@ fviz_eig(
   barfill = "#99CC00FF",
   barcolor = "#99CC00FF",
   xlab = "New dimensions of patients without T2DM"
-)  
+  )  
 ```
 
 ### Variables for patients with T2DM
@@ -2010,9 +2065,29 @@ head(var.dm$cos2, 5)
 my_ggcorrplor(var.dm$cos2)
 ```
 
-```{r fig.height=7, fig.width=7, fig.align='center'}
-# Cos2 plot for the variables on the dimensions 1 and 2
-fviz_cos2(new_dim.dm, choice = "var", axes = 1:2)
+```{r fig.height=8, fig.width=10, fig.align='center'}
+# Cos2 plot for the variables on the dimensions 1
+x1 <- fviz_cos2(new_dim.dm, choice = "var", axes = 1)
+
+# Cos2 plot for the variables on the dimensions 2
+x2 <- fviz_cos2(new_dim.dm, choice = "var", axes = 2)
+
+# Cos2 plot for the variables on the dimensions 3
+x3 <- fviz_cos2(new_dim.dm, choice = "var", axes = 3)
+
+# Cos2 plot for the variables on the dimensions 4
+x4 <- fviz_cos2(new_dim.dm, choice = "var", axes = 4)
+
+# Arrange multiple plots
+cos2_plot <- ggpubr::ggarrange(x1, x2, x3, x4,
+                               ncol = 2, nrow = 2)
+
+annotate_figure(cos2_plot,
+                top = text_grob(
+                  "Cos2 in patients with T2DM",
+                  face = "bold",
+                  size = 16
+                ))
 ```
 
 ```{r}
@@ -2034,7 +2109,7 @@ c <- fviz_pca_var(
   col.var.dm = "cos2",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
   repel = TRUE
-) # repel = TRUE avoid text overlapping
+  ) # repel = TRUE avoid text overlapping
 ```
 
 ```{r}
@@ -2047,18 +2122,41 @@ head(var.dm$contrib, 5)
 corrplot(var.dm$contrib, is.corr = FALSE)
 ```
 
-```{r fig.height=7, fig.width=7, fig.align='center'}
+```{r fig.height=8, fig.width=10, fig.align='center'}
 # Contribution plot of the top 10 variables on PC1
-fviz_contrib(new_dim.dm,
-             choice = "var",
-             axes = 1,
-             top = 10)
+x1 <- fviz_contrib(new_dim.dm,
+                   choice = "var",
+                   axes = 1,
+                   top = 10)
 
 # Contribution plot of the top 10 variables on PC2
-fviz_contrib(new_dim.dm,
-             choice = "var",
-             axes = 2,
-             top = 10)
+x2 <- fviz_contrib(new_dim.dm,
+                   choice = "var",
+                   axes = 2,
+                   top = 10)
+
+# Contribution plot of the top 10 variables on PC3
+x3 <- fviz_contrib(new_dim.dm,
+                   choice = "var",
+                   axes = 3,
+                   top = 10)
+
+# Contribution plot of the top 10 variables on PC4
+x4 <- fviz_contrib(new_dim.dm,
+                   choice = "var",
+                   axes = 4,
+                   top = 10)
+
+# Arrange multiple plots
+contrib_plot <- ggpubr::ggarrange(x1, x2, x3, x4,
+                                  ncol = 2, nrow = 2)
+
+annotate_figure(contrib_plot,
+                top = text_grob(
+                  "Contribution in patients with T2DM",
+                  face = "bold",
+                  size = 16
+                ))
 ```
 
 ```{r}
@@ -2080,7 +2178,7 @@ f <- fviz_pca_var(
   col.var.dm = "contrib",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
   repel = TRUE
-)
+  )
 ```
 
 ```{r fig.height=12, fig.width=12, fig.align='center'}
@@ -2091,7 +2189,7 @@ pca_dm <- ggpubr::ggarrange(a, d, b, e, c, f,
                              legend = "right")
 
 annotate_figure(pca_dm,
-                top = text_grob("PCA of patients with T2DM",
+                top = text_grob("PCA in patients with T2DM",
                                 face = "bold",
                                 size = 16))
 ```
@@ -2117,9 +2215,29 @@ head(var.non$cos2, 5)
 my_ggcorrplor(var.non$cos2)
 ```
 
-```{r fig.height=7, fig.width=7, fig.align='center'}
-# Cos2 plot for the variables on dimensions 1 and 2
-fviz_cos2(new_dim.non, choice = "var", axes = 1:2)
+```{r fig.height=8, fig.width=10, fig.align='center'}
+# Cos2 plot for the variables on dimensions 1
+x5 <- fviz_cos2(new_dim.non, choice = "var", axes = 1)
+
+# Cos2 plot for the variables on dimensions 2
+x6 <- fviz_cos2(new_dim.non, choice = "var", axes = 2)
+
+# Cos2 plot for the variables on dimensions 3
+x7 <- fviz_cos2(new_dim.non, choice = "var", axes = 3)
+
+# Cos2 plot for the variables on dimensions 4
+x8 <- fviz_cos2(new_dim.non, choice = "var", axes = 4)
+
+# Arrange multiple plots
+contrib_plot <- ggpubr::ggarrange(x5, x6, x7, x8,
+                                  ncol = 2, nrow = 2)
+
+annotate_figure(contrib_plot,
+                top = text_grob(
+                  "Cos2 in patients without T2DM",
+                  face = "bold",
+                  size = 16
+                ))
 ```
 
 ```{r}
@@ -2141,7 +2259,7 @@ c <- fviz_pca_var(
   col.var.non = "cos2",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
   repel = TRUE
-) # repel = TRUE avoid text overlapping
+  ) # repel = TRUE avoid text overlapping
 ```
 
 ```{r}
@@ -2154,18 +2272,41 @@ head(var.non$contrib, 5)
 corrplot(var.non$contrib, is.corr = FALSE)
 ```
 
-```{r fig.height=7, fig.width=7, fig.align='center'}
+```{r fig.height=8, fig.width=10, fig.align='center'}
 # Contribution plot of the top 10 variables on PC1
-fviz_contrib(new_dim.non,
-             choice = "var",
-             axes = 1,
-             top = 10)
+x5 <- fviz_contrib(new_dim.non,
+                   choice = "var",
+                   axes = 1,
+                   top = 10)
 
 # Contribution plot of the top 10 variables on PC2
-fviz_contrib(new_dim.non,
-             choice = "var",
-             axes = 2,
-             top = 10)
+x6 <- fviz_contrib(new_dim.non,
+                   choice = "var",
+                   axes = 2,
+                   top = 10)
+
+# Contribution plot of the top 10 variables on PC3
+x7 <- fviz_contrib(new_dim.non,
+                   choice = "var",
+                   axes = 3,
+                   top = 10)
+
+# Contribution plot of the top 10 variables on PC4
+x8 <- fviz_contrib(new_dim.non,
+                   choice = "var",
+                   axes = 4,
+                   top = 10)
+
+# Arrange multiple plots
+contrib_plot <- ggpubr::ggarrange(x5, x6, x7, x8,
+                                  ncol = 2, nrow = 2)
+
+annotate_figure(contrib_plot,
+                top = text_grob(
+                  "Contribution in patients without T2DM",
+                  face = "bold",
+                  size = 16
+                ))
 ```
 
 ```{r}
@@ -2198,7 +2339,7 @@ pca_non <- ggpubr::ggarrange(a, d, b, e, c, f,
                              legend = "right")
 
 annotate_figure(pca_non,
-                top = text_grob("PCA of patients without T2DM",
+                top = text_grob("PCA in patients without T2DM",
                                 face = "bold",
                                 size = 16))
 ```
@@ -2498,11 +2639,11 @@ a1.dm <- ggpubr::ggpar(
   font.legend = c(12, "black")
   )
 
-# Contributions on PC3 and PC4
+# Contributions on PC1 and PC3
 b.dm <- fviz_pca_biplot(
   new_dim.dm,
-  # Dimensions 3 and 4
-  axes = 3:4,
+  # Dimensions 1 and 3
+  axes = c(1, 3),
   # Individuals
   col.ind = old_dim.dm$outcome,
   geom.ind = "point",
@@ -2522,8 +2663,8 @@ b.dm <- fviz_pca_biplot(
 b1.dm <- ggpubr::ggpar(
   b.dm,
   title = element_blank(),
-  xlab = "PC3 (11.5%)",
-  ylab = "PC4 (9.9%)",
+  xlab = "PC1 (22.8%)",
+  ylab = "PC3 (11.5%)",
   legend.title = "Group",
   font.legend = c(12, "black")
   )
@@ -2542,6 +2683,7 @@ F1_dm <- ggpubr::ggarrange(
 # View
 F1_dm
 ```
+Among COVID-19 patients with T2DM, PCA showed that neutrophils, NLR, WBC, and PaO2:FiO2 ratio were that the variables with higher contributions for PC1 (22.8%), while DBP, SBP and SaO2 were that the variables with higher contributions for PC2 (12.2%) but PaO2:FiO2 ratio and SaO2 were important in survivor group (Figure 2A). Also, the biplot of PC1 and PC3 showed similar results including respiratory and hear rates (Figure S2A). Among COVID-19 patients without T2DM, neutrophils, WBC, NLR, PaO2:FiO2 ratio, and SaO2 were that the variables with higher contributions for PC1 (22%),while DBP, SBP, PaO2:FiO2 ratio, PaO2 and NLR were that the variables with higher contributions for PC2 (12.3%) but PaO2:FiO2 ratio, SaO2 abd PaO2 were important in survivor group (Figure 2B). Also, the biplot of PC1 and PC3 showed similar results including age (Figure S2B). However, based on the results of bivariate analysis and PCA, the T2DM group showed that SBP, DBP, respiratory rate and platelets was not showed difference significantly by outcome groups, and only SBP, DBP, and platelets was not showed difference significantly by outcome groups in patients without T2DM.
 
 ### Biplot of individuals and variables of patients without T2DM
 
@@ -2576,11 +2718,11 @@ a1.non <- ggpubr::ggpar(
   font.legend = c(12, "black")
 )
 
-# Contributions on PC3 and PC4
+# Contributions on PC1 and PC3
 b.non <- fviz_pca_biplot(
   new_dim.non,
-  # Dimensions 3 and 4
-  axes = 3:4,
+  # Dimensions 1 and 3
+  axes = c(1, 3),
   # Individuals
   col.ind = old_dim.non$outcome,
   geom.ind = "point",
@@ -2600,8 +2742,8 @@ b.non <- fviz_pca_biplot(
 b1.non <- ggpubr::ggpar(
   b.non,
   title = element_blank(),
-  xlab = "PC3 (10.8%)",
-  ylab = "PC4 (10%)",
+  xlab = "PC1 (22%)",
+  ylab = "PC3 (10.8%)",
   legend.title = "Group",
   font.legend = c(12, "black")
 )
@@ -2636,8 +2778,7 @@ FS2
 ```
 
 ::: {style="text-align: justify"}
-The PCA has limitations, including **sensitivity to the scale of variables**. It's essential to standardize variables to have *unit variance* before conducting PCA to mitigate this issue. PCA also assumes **linearity**; if variables do not exhibit linear relationships, alternative dimensionality reduction methods like t-SNE or UMAP may be more suitable for non-linear data structures. The principal components (new dimensions) created by PCA are linear combinations of the original variables (original dimensions) and may lack direct interpretability, necessitating careful evaluation. Dimension reduction through PCA inevitably leads to some information loss. While the discarded components are less significant, they may still hold valuable insights. Recognizing these limitations is crucial as it does not lessen PCA's value but rather enhances its usefulness in guiding its application.
-It's recommended to perform PCA before K-means clustering because speeds up the clustering process and optimizes computational resources, especially on large datasets. The PCA optimizes clustering by reducing noise and redundant information, which helps K-means clustering focus on relevant features, leading to more accurate cluster assignments. Dimension reduction captures important information into few dimensions, this reduces the number of features and preserves most of the variation, making subsequent clustering more efficient and improves interpretation.
+The PCA has limitations, including **sensitivity to the scale of variables**. It's essential to standardize variables to have *unit variance* before conducting PCA to mitigate this issue. PCA also assumes **linearity**; if variables do not exhibit linear relationships, alternative dimensionality reduction methods like t-SNE or UMAP may be more suitable for non-linear data structures. The principal components (new dimensions) created by PCA are linear combinations of the original variables (original dimensions) and may lack direct interpretability, necessitating careful evaluation. Dimension reduction through PCA inevitably leads to some information loss. While the discarded components are less significant, they may still hold valuable insights. Recognizing these limitations is crucial as it does not lessen PCA's value but rather enhances its usefulness in guiding its application. It's recommended to perform PCA before K-means clustering because speeds up the clustering process and optimizes computational resources, especially on large datasets. The PCA optimizes clustering by reducing noise and redundant information, which helps K-means clustering focus on relevant features, leading to more accurate cluster assignments. Dimension reduction captures important information into few dimensions, this reduces the number of features and preserves most of the variation, making subsequent clustering more efficient and improves interpretation.
 :::
 
 ## t-Distributed Stochastic Neighbor Embedding (t-SNE)
