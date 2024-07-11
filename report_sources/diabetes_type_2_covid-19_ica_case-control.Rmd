@@ -64,7 +64,7 @@ pacman::p_load(
 rfextras::load_scripts()
 ```
 
-```{r}
+```{r results='hide'}
 grateful::cite_packages(
   output = "file",
   out.format = "docx",
@@ -126,7 +126,7 @@ my_flextable_theme <- function(x, bold_header = FALSE) {
 
 ## Remove missing values (\>10% by variable)
 
-```{r eval=FALSE, include=FALSE}
+```{r}
 clean_data <- clean_data |>
   dplyr::select(where( ~ sum(is.na(.)) < 90))
 ```
@@ -2683,7 +2683,6 @@ F1_dm <- ggpubr::ggarrange(
 # View
 F1_dm
 ```
-Among COVID-19 patients with T2DM, PCA showed that neutrophils, NLR, WBC, and PaO2:FiO2 ratio were that the variables with higher contributions for PC1 (22.8%), while DBP, SBP and SaO2 were that the variables with higher contributions for PC2 (12.2%) but PaO2:FiO2 ratio and SaO2 were important in survivor group (Figure 2A). Also, the biplot of PC1 and PC3 showed similar results including respiratory and hear rates (Figure S2A). Among COVID-19 patients without T2DM, neutrophils, WBC, NLR, PaO2:FiO2 ratio, and SaO2 were that the variables with higher contributions for PC1 (22%),while DBP, SBP, PaO2:FiO2 ratio, PaO2 and NLR were that the variables with higher contributions for PC2 (12.3%) but PaO2:FiO2 ratio, SaO2 abd PaO2 were important in survivor group (Figure 2B). Also, the biplot of PC1 and PC3 showed similar results including age (Figure S2B). However, based on the results of bivariate analysis and PCA, the T2DM group showed that SBP, DBP, respiratory rate and platelets was not showed difference significantly by outcome groups, and only SBP, DBP, and platelets was not showed difference significantly by outcome groups in patients without T2DM.
 
 ### Biplot of individuals and variables of patients without T2DM
 
@@ -2763,15 +2762,33 @@ F1_non <- ggpubr::ggarrange(
 F1_non
 ```
 
-```{r fig.height=11, fig.width=14, fig.align='center'}
+```{r fig.height=6, fig.width=14, fig.align='center'}
 # Arrange multiple plots
-FS2 <- ggpubr::ggarrange(
-  a1.dm, b1.dm, a1.non, b1.non,
-  ncol = 2, nrow = 2,
-  labels = c("A)", "B)", "C)", "D)"),
+F2 <- ggpubr::ggarrange(
+  a1.dm, a1.non,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
   legend = "bottom",
   common.legend = TRUE
-)
+  )
+
+# View
+F2
+```
+
+::: {style="text-align: justify"}
+Among COVID-19 patients with T2DM, PCA showed that neutrophils, NLR, WBC, and PaO2:FiO2 ratio were that the variables with higher contributions for PC1 (22.8%), while DBP, SBP and SaO2 were that the variables with higher contributions for PC2 (12.2%) but PaO2:FiO2 ratio and SaO2 were important in survivor group (Figure 2A). Also, the biplot of PC1 and PC3 showed similar results including respiratory and hear rates (Figure S2A). Among COVID-19 patients without T2DM, neutrophils, WBC, NLR, PaO2:FiO2 ratio, and SaO2 were that the variables with higher contributions for PC1 (22%),while DBP, SBP, PaO2:FiO2 ratio, PaO2 and NLR were that the variables with higher contributions for PC2 (12.3%) but PaO2:FiO2 ratio, SaO2 abd PaO2 were important in survivor group (Figure 2B). Also, the biplot of PC1 and PC3 showed similar results including age (Figure S2B). However, based on the results of bivariate analysis and PCA, the T2DM group showed that SBP, DBP, respiratory rate and platelets was not showed difference significantly by outcome groups, and only SBP, DBP, and platelets was not showed difference significantly by outcome groups in patients without T2DM.
+:::
+
+```{r fig.height=6, fig.width=14, fig.align='center'}
+# Arrange multiple plots
+FS2 <- ggpubr::ggarrange(
+  b1.dm, b1.non,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE
+  )
 
 # View
 FS2
