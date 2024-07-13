@@ -37,6 +37,7 @@ pacman::p_load(
   reportfactory,
   rfextras,
   tidyverse,
+  broom,
   ggcorrplot,
   ggsci,
   ggpubr,
@@ -59,7 +60,7 @@ pacman::p_load(
   grateful,
   patchwork,
   officer
-)
+  )
 # My function scripts
 rfextras::load_scripts()
 ```
@@ -383,7 +384,7 @@ tbl_1.1 <- data_match |>
   ) |>
   add_overall() |>
   add_p(edad ~ "t.test",
-        test.args = all_tests("t.test") ~ list(var.equal = TRUE)) |>
+        test.args = edad ~ list(var.equal = TRUE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
                 stat_0 = "**All patients** (n = {N})",
@@ -413,7 +414,8 @@ tbl_1.3 <- data_match |>
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
   add_overall() |>
-  add_p() |>
+  add_p(frecuencia_cardiaca ~ "t.test",
+        test.args = frecuencia_cardiaca ~ list(var.equal = TRUE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
 ```
@@ -428,7 +430,7 @@ table_1 = tbl_stack(
     "Vital signs"
   ),
   quiet = TRUE
-) |>
+  ) |>
   modify_caption(
     "**Table 1**. Demographic and clinical characteristics of the patients"
     )
@@ -526,7 +528,8 @@ tbl_3.1 <-
     statistic = list(edad ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
-  add_p() |>
+  add_p(edad ~ "t.test",
+        test.args = edad ~ list(var.equal = TRUE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
                 p.value = "**p value**")
@@ -553,9 +556,11 @@ tbl_3.3 <-
     include = c(frecuencia_respiratoria:p_a_diastolica.c, outcome),
     by = outcome,
     percent = "column",
+    statistic = list(frecuencia_cardiaca ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
-  add_p() |>
+  add_p(frecuencia_cardiaca ~ "t.test",
+        test.args = frecuencia_cardiaca ~ list(var.equal = TRUE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
 ```
@@ -574,7 +579,8 @@ tbl_3.4 <-
     statistic = list(edad ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
-  add_p() |>
+  add_p(edad ~ "t.test", 
+        test.args = edad ~ list(var.equal = FALSE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})",
                 p.value = "**p value**")
@@ -601,9 +607,11 @@ tbl_3.6 <-
     include = c(frecuencia_respiratoria:p_a_diastolica.c, outcome),
     by = outcome,
     percent = "column",
+    statistic = list(frecuencia_cardiaca ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
-  add_p() |>
+  add_p(frecuencia_cardiaca ~ "t.test",
+        test.args = frecuencia_cardiaca ~ list(var.equal = FALSE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
 ```
@@ -892,6 +900,7 @@ table_s1.2_uv <- data_uv_nondm |>
   bold_labels() |>
   bold_p(t = 0.05) |>
   modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+table_s1.2_uv
 ```
 
 ```{r}
@@ -1128,7 +1137,7 @@ backward_dm <- m1_dm |>
 
 ```{r include=FALSE}
 # Summary
-summary(backward_dm)
+jtools::summ(backward_dm)
 ```
 
 ```{r fig.height=10, fig.width=10, fig.align='center'}
@@ -1167,7 +1176,7 @@ backward_non <- m1_non |>
 
 ```{r include=FALSE}
 # Summary
-summary(backward_non)
+jtools::summ(backward_non)
 ```
 
 ```{r fig.height=10, fig.width=10, fig.align='center'}
@@ -1197,6 +1206,7 @@ performance::check_collinearity(m2_non)
 # Model summaries
 epiDisplay::logistic.display(m2_non, simplified = FALSE, crude = FALSE)
 ```
+> 📝***NOTE:*** The backward selection yielded the same results as the complete model
 
 #### Parsimonious model for patients with T2DM
 
@@ -1452,7 +1462,7 @@ lmtest::lrtest(m2_non, m3_non)
 
 # Sensitivity analysis
 
-## Sensitivity to continuous data categorization
+## Sensitivity to categorization of continuous data
 
 ::: {style="text-align: justify"}
 In this sensitivity analysis, the analyses will be repeated with **continuous data** to ensure that there are no differences in the conclusions. While the categorization of continuous variables has the disadvantage of loss of information, it has the advantage of assuming linearity and being easily interpreted by the non-specialized public.
@@ -1509,6 +1519,37 @@ table_sens_uv_dm <- data_sens_dm |>
 
 #### Multivariable regression analysis
 
+```{r include=FALSE}
+# Original model
+final_model_dm <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_dm
+  )
+
+# Alternative model
+sens_model_dm <-
+  glm(
+    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
+      saturacion_de_oxigeno + pafi,
+    family = binomial(link = "logit"),
+    data = data_sens_dm
+  )
+```
+
+```{r include=FALSE}
+# Comparison of the regression coefficients and their standard errors
+car::compareCoefs(final_model_dm, sens_model_dm, pvals = T)
+```
+
+```{r include=FALSE}
+# Impact on the overall multiple degrees of freedom significance test
+car::Anova(final_model_dm, type = 3)
+car::Anova(sens_model_dm, type = 3)
+```
+
 ```{r}
 table_sens_mv_dm <-
   glm(
@@ -1534,32 +1575,6 @@ table_sens_mv_dm <-
   ) |>
   bold_p(t = 0.05) |>
   modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
-```
-
-```{r include=FALSE}
-# Models
-final_model_dm <-
-  glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
-    family = binomial(link = "logit"),
-    data = data_uv_dm
-  )
-
-sens_model_dm <-
-  glm(
-    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
-      saturacion_de_oxigeno + pafi,
-    family = binomial(link = "logit"),
-    data = data_sens_dm
-  )
-
-# Comparison of the regression coefficients and their standard errors
-car::compareCoefs(final_model_dm, sens_model_dm, pvals = T)
-
-# Impact on the overall multiple degrees of freedom significance test
-car::Anova(final_model_dm, type = 3)
-car::Anova(sens_model_dm, type = 3)
 ```
 
 ### Patients without T2DM
@@ -1606,6 +1621,38 @@ table_sens_uv_non <- data_sens_nondm |>
 #### Multivariable regression analysis with continuous data
 
 ```{r}
+# Original model
+final_model_non <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = data_uv_nondm
+  )
+
+# Alternative model
+sens_model_non <-
+  glm(
+    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
+      saturacion_de_oxigeno + pafi,
+    family = binomial(link = "logit"),
+    data = data_sens_nondm
+  )
+```
+
+```{r include=FALSE}
+# Comparison of the regression coefficients and their standard errors
+car::compareCoefs(final_model_non, sens_model_non, pvals = T)
+```
+
+```{r include=FALSE}
+# Impact on the overall multiple degrees of freedom significance test
+car::Anova(final_model_non, type = 3)
+car::Anova(sens_model_non, type = 3)
+```
+
+```{r}
+
 table_sens_mv_non <-
   glm(
     outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
@@ -1632,37 +1679,13 @@ table_sens_mv_non <-
   modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
 ```
 
-```{r include=FALSE}
-# Models
-final_model_non <-
-  glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
-    family = binomial(link = "logit"),
-    data = data_uv_nondm
-  )
-
-sens_model_non <-
-  glm(
-    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
-      saturacion_de_oxigeno + pafi,
-    family = binomial(link = "logit"),
-    data = data_sens_nondm
-  )
-
-# Comparison of the regression coefficients and their standard errors
-car::compareCoefs(final_model_non, sens_model_non, pvals = T)
-
-# Impact on the overall multiple degrees of freedom significance test
-car::Anova(final_model_non, type = 3)
-car::Anova(sens_model_non, type = 3)
-```
-
 ```{r}
 # Number of observations
 counts.dm <- nrow(data_sens_dm)
 counts.non <- nrow(data_sens_nondm)
+```
 
+```{r}
 # Merge tables
 table_s2 <-
   tbl_merge(tbls = list(
@@ -1680,7 +1703,7 @@ table_s2 <-
     c(estimate_1, estimate_2, estimate_3, estimate_4) ~ "OR = Odds Ratio",
     c(ci_1, ci_2, ci_3, ci_4) ~ "95% CI = 95% Confidence Interval"
   ) |>
-  modify_caption("Table S2. Sensitivity to continuous data categorization")
+  modify_caption("Table S2. Sensitivity to categorization of continuous data")
 
 # Convert gtsummary object to a flextable object and format character columns
 flex_table_s2 <- table_s2 |>
@@ -1701,9 +1724,8 @@ This is an analysis of sensitivity to outliers and/or influential observations, 
 
 ### Patients with T2DM
 
-#### Outlier identification
-
 ```{r}
+# Original model
 final_model_dm <-
   glm(
     outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
@@ -1711,14 +1733,18 @@ final_model_dm <-
     family = binomial(link = "logit"),
     data = data_uv_dm
   )
+```
 
+#### Outlier identification
+
+```{r}
 # Outlier test
 car::outlierTest(final_model_dm, n.max = Inf)
 
 # Extract Studentized residuals
 rstudent.dm <- rstudent(final_model_dm)
 
-# Use numeric cutoff from outlier test to identify outliers
+# Use a numeric cutoff based on the outlier test 
 outliers.dm <- rstudent.dm > 2
 rstudent.dm[outliers.dm]
 ```
@@ -1726,8 +1752,13 @@ rstudent.dm[outliers.dm]
 ```{r}
 # Identify outlier observations
 data_uv_nondm[c("144"),
-              c("edad.c", "hta", "disnea", "frecuencia_cardiaca.c", 
-                "neutrofilos.c", "saturacion_de_oxigeno.c", "pafi.c")]
+              c("edad.c",
+                "hta",
+                "disnea",
+                "frecuencia_cardiaca.c",
+                "neutrofilos.c",
+                "saturacion_de_oxigeno.c",
+                "pafi.c")]
 ```
 
 ```{r fig.align='center'}
@@ -1736,19 +1767,20 @@ car::residualPlots(
   final_model_dm,
   pch = 20,
   smooth = list(col = "tomato"),
-  col = "gray55",
+  col = "gray65",
   fitted = TRUE,
   terms = ~ 1,
   tests = FALSE,
   quadratic = FALSE,
   type = "rstudent"
-)
+  )
 
 # Highlight outliers
 points(fitted(final_model_dm)[outliers.dm],
        rstudent.dm[outliers.dm],
        pch = 20,
        cex = 2)
+abline(h = c(-2, 2), lty = 2)
 ```
 
 #### Influential observations identification
@@ -1759,8 +1791,7 @@ car::influenceIndexPlot(
   final_model_dm,
   vars = c("Studentized", "hat"),
   id = TRUE,
-  main = "Residuals and leverage"
-)
+  main = "Residuals and leverage")
 ```
 
 ```{r fig.align='center'}
@@ -1775,7 +1806,7 @@ car::influenceIndexPlot(final_model_dm,
 # Extract Cook’s distance
 cook.dm <- cooks.distance(final_model_dm)
 
-# Subjective cutoff from figure
+# Subjective cutoff from plot
 sub.cook.dm <- cook.dm  > 0.03
 
 # View the extreme Cook's distance values
@@ -1785,27 +1816,140 @@ cook.dm[sub.cook.dm]
 ```{r}
 # Extract DFBetas
 dfbetas.dm <- dfbetas(final_model_dm)
+colnames(dfbetas.dm)
 
 # Standard cutoff for DFBeta
 sub.dfbetas.dm <- apply(abs(dfbetas.dm) > 0.2, 1, any)
 
-# View the extreme DFBetas
-dfbetas.dm[sub.dfbetas.dm, ]
+# View the extreme DFBetas - a large matrix so not shown
+# dfbetas.dm[sub.dfbetas.dm, ]
 ```
 
-```{r collapse=TRUE}
+```{r}
+par(mfrow = c(2, 4))
+plot(dfbetas.dm[, "(Intercept)"], ylab = "Intercept")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "edad.c>= 61"], ylab = "Age >= 61")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "htaYes"], ylab = "Hypertension")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "disneaYes"], ylab = "Dyspnea")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "frecuencia_cardiaca.c>= 100"], ylab = "Heart rate >= 100")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "neutrofilos.c> 6.3"], ylab = "Neutrophils > 6.3")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "saturacion_de_oxigeno.c< 90"], ylab = "SaO2 < 90")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.dm[, "pafi.c<= 200"], ylab = "PaO2:FiO2 ratio <= 200")
+abline(h = c(-0.2, 0.2), lty = 2)
+```
+
+```{r}
 # Put it all together
 influential_obs.dm <- outliers.dm | sub.cook.dm | sub.dfbetas.dm
 sum(influential_obs.dm)
 
 # Identify influential observations
-influential_obs.dm.true <- influential_obs.dm[influential_obs.dm]
-influential_obs.dm.true
+influential_obs.dm[influential_obs.dm]
+```
+
+```{r}
+# Subset data
+subdat_dm <- subset(data_uv_dm, !influential_obs.dm)
+nrow(data_uv_dm)
+nrow(subdat_dm)
+```
+
+```{r}
+# Alternative model
+sens_model_outlier_dm <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = subdat_dm
+  )
+
+jtools::summ(sens_model_outlier_dm)
+```
+
+```{r}
+# Comparison of the regression coefficients and their standard errors
+car::compareCoefs(final_model_dm,
+                  sens_model_outlier_dm,
+                  pvals = TRUE)
+```
+
+```{r}
+# Impact on the overall multiple degrees of freedom significance test
+car::Anova(final_model_dm, type = 3)
+car::Anova(sens_model_outlier_dm, type = 3)
+```
+
+::: {style="text-align: justify"}
+We removed dyspnea from subsequent analyzes due to overestimation of its regression coefficient and standard error.
+::: 
+
+#### Univariate regression analysis
+
+```{r}
+table_sens_outlier_uv_dm <- subdat_dm |>
+  tbl_uvregression(
+    include = c(edad.c, hta, frecuencia_cardiaca.c, neutrofilos.c,
+                saturacion_de_oxigeno.c, pafi.c),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+#### Multivariable regression analysis
+
+```{r}
+table_sens_outlier_mv_dm <-
+  glm(
+    outcome ~ edad.c + hta + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = subdat_dm
+  ) |>
+  tbl_regression(
+    conf.int = TRUE,
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
 ```
 
 ### Patients without T2DM
-
-#### Outlier identification
 
 ```{r}
 final_model_non <-
@@ -1815,7 +1959,11 @@ final_model_non <-
     family = binomial(link = "logit"),
     data = data_uv_nondm
   )
+```
 
+#### Outlier identification
+
+```{r}
 # Outlier test
 car::outlierTest(final_model_non, n.max = Inf)
 
@@ -1825,7 +1973,7 @@ rstudent.non <- rstudent(final_model_non)
 # Extract Studentized residuals
 rstudent.non <- rstudent(final_model_non)
 
-# Use numeric cutoff from outlier test to identify outliers
+# Use a numeric cutoff based on the outlier test
 outliers.non <- rstudent.non > 2
 rstudent.non[outliers.non]
 ```
@@ -1833,8 +1981,13 @@ rstudent.non[outliers.non]
 ```{r}
 # Identify outlier observations
 data_uv_nondm[c("560", "608"),
-              c("edad.c", "hta", "disnea", "frecuencia_cardiaca.c", 
-                "neutrofilos.c", "saturacion_de_oxigeno.c", "pafi.c")]
+              c("edad.c",
+                "hta",
+                "disnea",
+                "frecuencia_cardiaca.c",
+                "neutrofilos.c",
+                "saturacion_de_oxigeno.c",
+                "pafi.c")]
 ```
 
 ```{r fig.align='center'}
@@ -1843,19 +1996,20 @@ car::residualPlots(
   final_model_non,
   pch = 20,
   smooth = list(col = "tomato"),
-  col = "gray55",
+  col = "gray65",
   fitted = TRUE,
   terms = ~ 1,
   tests = FALSE,
   quadratic = FALSE,
   type = "rstudent"
-)
+  )
 
 # Highlight outliers
 points(fitted(final_model_non)[outliers.non],
        rstudent.non[outliers.non],
        pch = 20,
        cex = 2)
+abline(h = c(-2, 2), lty = 2)
 ```
 
 #### Influential observations identification
@@ -1866,8 +2020,7 @@ car::influenceIndexPlot(
   final_model_non,
   vars = c("Studentized", "hat"),
   id = TRUE,
-  main = "Residuals and leverage"
-)
+  main = "Residuals and leverage")
 ```
 
 ```{r fig.align='center'}
@@ -1892,12 +2045,31 @@ cook.non[sub.cook.non]
 ```{r}
 # Extract DFBetas
 dfbetas.non <- dfbetas(final_model_non)
+colnames(dfbetas.dm)
 
 # Standard cutoff for DFBeta
 sub.dfbetas.non <- apply(abs(dfbetas.non) > 0.2, 1, any)
 
-# View the extreme DFBetas
-dfbetas.non[sub.dfbetas.non, ]
+# View the extreme DFBetas - a large matrix so not shown
+# dfbetas.non[sub.dfbetas.non, ]
+```
+
+```{r}
+par(mfrow = c(2, 4))
+plot(dfbetas.non[, "(Intercept)"], ylab = "Intercept")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.non[, "htaYes"], ylab = "Hypertension")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.non[, "disneaYes"], ylab = "Dyspnea")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.non[, "frecuencia_cardiaca.c>= 100"], ylab = "Heart rate >= 100")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.non[, "neutrofilos.c> 6.3"], ylab = "Neutrophils > 6.3")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.non[, "saturacion_de_oxigeno.c< 90"], ylab = "SaO2 < 90")
+abline(h = c(-0.2, 0.2), lty = 2)
+plot(dfbetas.non[, "pafi.c<= 200"], ylab = "PaO2:FiO2 ratio <= 200")
+abline(h = c(-0.2, 0.2), lty = 2)
 ```
 
 ```{r}
@@ -1906,12 +2078,145 @@ influential_obs.non <- outliers.non| sub.cook.non | sub.dfbetas.non
 sum(influential_obs.non)
 
 # Identify influential observations
-influential_obs.non.true <- influential_obs.non[influential_obs.non]
-influential_obs.non.true
+influential_obs.non[influential_obs.non]
+```
+
+```{r}
+# Subset data
+subdat_non <- subset(data_uv_nondm, !influential_obs.non)
+nrow(data_uv_nondm)
+nrow(subdat_non)
+```
+
+```{r}
+# Alternative model
+sens_model_outlier_non <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = subdat_non
+  )
+
+jtools::summ(sens_model_outlier_non)
+```
+
+```{r}
+# Comparison of the regression coefficients and their standard errors
+car::compareCoefs(final_model_non,
+                  sens_model_outlier_non,
+                  pvals = TRUE)
+```
+
+```{r}
+# Impact on the overall multiple degrees of freedom significance test
+car::Anova(final_model_non, type = 3)
+car::Anova(sens_model_outlier_non, type = 3)
+```
+
+#### Univariate regression analysis
+
+```{r}
+table_sens_outlier_uv_non <- subdat_non |>
+  tbl_uvregression(
+    include = c(edad.c, hta, disnea, frecuencia_cardiaca.c, neutrofilos.c,
+                saturacion_de_oxigeno.c, pafi.c),
+    y = outcome,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    hide_n = TRUE,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_labels() |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
+```
+
+#### Multivariable regression analysis
+
+```{r}
+table_sens_outlier_mv_non <-
+  glm(
+    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
+      saturacion_de_oxigeno.c + pafi.c,
+    family = binomial(link = "logit"),
+    data = subdat_non
+  ) |>
+  tbl_regression(
+    conf.int = TRUE,
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2),
+    label = list(
+      edad.c ~ "Age (years)",
+      hta ~ "Hypertension",
+      disnea ~ "Dyspnea",
+      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
+      saturacion_de_oxigeno.c ~ "SaO~2~",
+      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+    )
+  ) |>
+  bold_p(t = 0.05) |>
+  modify_header(estimate = "**Multivariable OR**", p.value = "**p value** ")
+```
+
+```{r}
+# Number of observations
+counts.dm <- nrow(subdat_dm)
+counts.non <- nrow(subdat_non)
+```
+
+```{r}
+# Merge tables
+table_s3 <-
+  tbl_merge(
+    tbls = list(
+      table_sens_outlier_uv_dm,
+      table_sens_outlier_mv_dm,
+      table_sens_outlier_uv_non,
+      table_sens_outlier_mv_non
+    )
+  ) |>
+  modify_spanning_header(
+    list(
+      c(estimate_1:p.value_2) ~ "**Patients with T2DM** (N = {paste(counts.dm)})",
+      c(estimate_3:p.value_4) ~ "**Patients without T2DM** (N = {paste(counts.non)})"
+    )
+  ) |>
+  modify_footnote(everything() ~ NA, abbreviation = TRUE) |>
+  modify_footnote(
+    c(estimate_1, estimate_2, estimate_3, estimate_4) ~ "OR = Odds Ratio",
+    c(ci_1, ci_2, ci_3, ci_4) ~ "95% CI = 95% Confidence Interval"
+  ) |>
+  modify_caption("Table S3. Sensitivity to outliers and influential observations")
+
+# Convert gtsummary object to a flextable object and format character columns
+flex_table_s3 <- table_s3 |>
+  gtsummary::as_flex_table() |>
+  my_flextable_theme() |>
+  flextable::fontsize(part = "all", size = 10) |>
+  ftExtra::colformat_md()
+
+# View
+flex_table_s3
 ```
 
 ::: {style="text-align: justify"}
-We performed a sensitivity analysis and our results did not change significantly except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil count did so for non-T2DM patients. In addition, we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. Although the number of the latter decreased (N=446).
+We performed a sensitivity analysis to categorization of continuous data and our results did not change significantly except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil did so for non-T2DM patients (Table S2). In addition, we performed a sensitivity analysis to outliers and influential observations and we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. In patients with T2DM, all variables became independent predictors with the exception of PaO~2~:FiO~2~ ratio and dyspnea, the latter was not analyzed due to its overestimation. In patients without T2DM, all variables became independent predictors with the exception of hypertension (Table S3). While we still should focus on effect sizes rather than p-values, some of these changes are notably large.
 :::
 
 # Concordance statistic
@@ -1929,7 +2234,7 @@ survival::concordance(sens_model_dm)
 ```{r}
 # Non-T2DM model
 survival::concordance(final_model_non)
-#epiDisplay::lroc(final_model_non)$auc
+# epiDisplay::lroc(final_model_non)$auc
 ```
 
 ```{r}
@@ -2921,6 +3226,11 @@ save_as_docx(
 save_as_docx(
   flex_table_s2,
   path = stringr::str_glue(outputs_dir, "Table_s2.docx"),
+  align = "center")
+
+save_as_docx(
+  flex_table_s3,
+  path = stringr::str_glue(outputs_dir, "Table_s3.docx"),
   align = "center")
 ```
 
