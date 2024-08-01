@@ -14,6 +14,8 @@ format:
      light: flatly
      dark: darkly
     highlight-style: github
+    include-in-header:
+      - file: zoom_in_out.js
 editor: source
 editor_options: 
   chunk_output_type: inline
@@ -21,15 +23,19 @@ bibliography: grateful-refs.bib
 csl: vancouver.csl
 ---
 
+::: {style="text-align: justify"}
+A clear plan for a data analysis and visualization project must optimize resource allocation. The typical steps to carry out these projects in R are as follows: data import, data manipulation, descriptive statistics, inferential statistics and data visualization.
+:::
+
 # Set global knitr options
 
 ```{r}
-knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, dpi = 300)
 ```
 
 # Load packages
 
-```{r}
+```{r, results='hide'}
 # Packages
 pacman::p_load(
   rio,
@@ -37,11 +43,13 @@ pacman::p_load(
   reportfactory,
   rfextras,
   tidyverse,
-  broom,
   ggcorrplot,
   ggsci,
   ggpubr,
-  ggbiplot,
+  ggthemes,
+  ggpomological,
+  extrafont,
+  showtext,
   finalfit,
   gtsummary,
   flextable,
@@ -54,6 +62,7 @@ pacman::p_load(
   nortest,
   epiDisplay,
   car,
+  ResourceSelection,
   Rtsne,
   factoextra,
   corrplot,
@@ -61,11 +70,15 @@ pacman::p_load(
   patchwork,
   officer
   )
+
+# For PostScript output
+# extrafont::loadfonts(device = "postscript")
+
 # My function scripts
 rfextras::load_scripts()
 ```
 
-```{r results='hide'}
+```{r eval=FALSE}
 grateful::cite_packages(
   output = "file",
   out.format = "docx",
@@ -81,46 +94,16 @@ clean_data <- import(here("data", "data.csv"))
 
 # Set themes
 
-## Define `gtsummary` theme
+::: {style="text-align: justify"}
+The custom themes for `gtsummary`, `flextable`, and `ggplot2`, are in the `custom themes.R` script. The only theme that needs to be set is the `gtsummary` theme.
+:::
 
 ```{r}
-my_gtsummary_theme <-
-  list(
-    "pkgwide-fn:pvalue_fun" = function(x)
-      style_pvalue(x, digits = 2),
-    "pkgwide-fn:prependpvalue_fun" = function(x)
-      style_pvalue(x, digits = 2, prepend_p = TRUE),
-    "tbl_summary-str:continuous_stat" = "{median} ({p25}, {p75})",
-    "tbl_summary-str:categorical_stat" = "{n} ({p}%)",
-    "tbl_summary-fn:percent_fun" = function(x)
-      style_number(x, digits = 1, scale = 100),
-    "tbl_summary-arg:missing" = "no"
-  )
-
 # Set a gtsummary theme
 set_gtsummary_theme(my_gtsummary_theme, theme_gtsummary_compact())
 
 # Set a gtsummary language
 theme_gtsummary_language(language = "en")
-```
-
-## Define `flextable` theme
-
-```{r}
-my_flextable_theme <- function(x, bold_header = FALSE) {
-  std_border <- fp_border(width = 1, color = "grey14")
-  
-  x <- border_remove(x)
-  x <- hline_top(x, border = std_border, part = "header")
-  x <- hline_bottom(x, border = std_border, part = "header")
-  x <- bold(x, bold = bold_header, part = "header")
-  x <- hline_bottom(x, border = std_border, part = "body")
-  x <- align(x, align = "left", part = "body")
-  x <- align(x, align = "center", part = "header")
-  x <- font(x, part = "all", fontname = "Segoe UI")
-  fix_border_issues(x, part = "all")
-  autofit(x)
-}
 ```
 
 # Process data
@@ -133,12 +116,12 @@ clean_data <- clean_data |>
 ```
 
 ::: {style="text-align: justify"}
-The following variables were removed: mcv, mch, hemoglobin, hematocrit, creatinine, urea, glucose, ph, anion_gap, sodio, potasio, cloro, calcio, fi_o2, pco2, hco3, lactate, antiparasitic.
+The following variables were removed: mcv, mch, hemoglobin, hematocrit, creatinine, urea, glucose, ph, anion_gap, sodio, potasio, cloro, calcio, fi_o2, PCO2, HCO3, lactate, antiparasitic.
 :::
 
 ## Matching
 
-The matchup will be with a 1:3 ratio match.
+The match will be with a 1:3 ratio match.
 
 ```{r}
 # Matching for Causal Inference
@@ -170,10 +153,10 @@ This subsection converts categorical variables into factors and recode/clean val
 Potential risk factors associated with mortality caused by COVID-19 in patients with type II diabetes mellitus (T2DM) are presented, each factor/variable is labeled with a legend that indicates its clinical importance, accuracy, and number of events. This is see in the **dictionary** script.
 :::
 
--   Clinically important with enough evidence but with small number of events, shown as `\####`
--   Clinically important with enough evidence and enough number of events, shown as `\###`
--   Clinically important with limited evidence, shown as `\##`
--   Inconsistent or contradictory evidence and unconfirmed accuracy (self-reported) `\#`
+-   Clinically important with enough evidence but with small number of events, shown as `####`
+-   Clinically important with enough evidence and enough number of events, shown as `###`
+-   Clinically important with limited evidence, shown as `##`
+-   Inconsistent or contradictory evidence and unconfirmed accuracy (self-reported) `#`
 
 ```{r}
 data_match_eda <- dictionary(data_match_eda)
@@ -193,28 +176,33 @@ In this subsection we will see a preview of the descriptive statistics, some sum
 A categorical variable is a variable that can take on one of a small set of values. These values can be character, logical, or factor values. According to the object classes, character class objects are the most flexible, while logic class objects are the most restrictive. Many categorical variables lack an intrinsic order, and thus, it is necessary to reorder them to create a more informative display.
 :::
 
-```{r echo=TRUE, include=FALSE}
+```{r}
 # Factor selection
 categorical <- data_match_eda |>
   dplyr::select(where(is.factor), -matched_id)
+```
 
+```{r echo=TRUE, include=FALSE}
 # Multiple tables (relative frequencies) with lapply
 lapply(categorical, function(x)
   round(prop.table(table(x)) * 100, 1))
+```
 
-# Relative frequencies with tidyr and dplyr
+#### Relative frequencies with tidyr and dplyr
+
+```{r}
 categorical_pivot <- categorical |>
   tidyr::pivot_longer(everything(), names_to = "Variable", values_to = "Valor") |>
   dplyr::group_by(Variable, Valor) |>
   dplyr::summarise(n = n()) |>
   tidyr::drop_na() |>
-  dplyr::mutate(Porcentaje = round(n / sum(n) * 100, 1))
+  dplyr::mutate(perc = round(n / sum(n) * 100, 1))
 ```
 
 ```{r}
 # Variables with relative frequency less than 2.5%
 excluded_var <- categorical_pivot |>
-  dplyr::filter(Porcentaje < 2.5) |>
+  dplyr::filter(perc < 2.5) |>
   dplyr::distinct(Variable) |>
   dplyr::pull()
 ```
@@ -241,22 +229,44 @@ lapply(numerical, function(x)
   summary(x))
 ```
 
-```{r fig.height=10, fig.width=10, fig.align='center'}
+```{r}
 # Variable groups
 dem_numerical <- numerical |>
-  dplyr::select(edad:p_a_diastolica)
+  dplyr::select(edad:DBP, platelets, -t_enfermedad)
 
 hemo_numerical <- numerical |>
-  dplyr::select(wbc:platelets)
+  dplyr::select(WBC:NLR)
 
 gas_numerical <- numerical |>
-  dplyr::select(saturacion_de_oxigeno:pao2)
+  dplyr::select(SaO2:PaO2)
+```
 
+::: panel-tabset
+
+#### Part 1 {.active}
+
+```{r fig.height=10, fig.width=11.5, fig.align='center'}
 # Formal and visual exploration
 total_plots(dem_numerical)
 ```
 
-### Numerical variables in survivors and non-survivor
+#### Part 2
+
+```{r fig.height=7, fig.width=10, fig.align='center'}
+# Formal and visual exploration
+total_plots(hemo_numerical)
+```
+
+#### Part 3
+
+```{r fig.height=7, fig.width=10, fig.align='center'}
+# Formal and visual exploration
+total_plots(gas_numerical)
+```
+
+:::
+
+### Numerical variables in patients with T2DM
 
 ::: {style="text-align: justify"}
 In this part, density plots will be used to illustrate the data grouped by the outcome. Other plots will not be included in the analysis, as a table with more detailed information will be presented. The questions we will ask ourselves are: Does the data appear to be normally distributed? and are the variances between groups equal?
@@ -267,43 +277,209 @@ In this part, density plots will be used to illustrate the data grouped by the o
 surv_numerical_t2dm <- data_match_eda |>
   dplyr::select(where(is.numeric), outcome, t2dm) |>
   dplyr::filter(t2dm == "yes")
+```
 
-# # Selection of numerical variables of patients without T2DM
+```{r eval=FALSE}
+# Summary statistics of T2DM patients
+lapply(surv_numerical_t2dm, function(x)
+  summary(x))
+```
+
+::: panel-tabset
+
+#### Part 1
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of age by group
+p1 <- group_stat_table_plot(surv_numerical_t2dm, "edad", "outcome")
+
+# Exploration of frec_respiratoria by group
+p2 <- group_stat_table_plot(surv_numerical_t2dm, "frec_respiratoria", "outcome")
+
+# Exploration of frec_cardiaca by group
+p3 <- group_stat_table_plot(surv_numerical_t2dm, "frec_cardiaca", "outcome")
+
+# Exploration of sick time by group
+p4 <- group_stat_table_plot(surv_numerical_t2dm, "t_enfermedad", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients with T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+#### Part 2
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of SBP by group
+p1 <- group_stat_table_plot(surv_numerical_t2dm, "SBP", "outcome")
+
+# Exploration of DBP by group
+p2 <- group_stat_table_plot(surv_numerical_t2dm, "DBP", "outcome")
+
+# Exploration of platelets by group
+p3 <- group_stat_table_plot(surv_numerical_t2dm, "platelets", "outcome")
+
+# Exploration of length of stay by group
+p4 <- group_stat_table_plot(surv_numerical_t2dm, "len_hosp_stay", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients with T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+#### Part 3
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of WBC by group
+p1 <- group_stat_table_plot(surv_numerical_t2dm, "WBC", "outcome")
+
+# Exploration of NLR by group
+p2 <- group_stat_table_plot(surv_numerical_t2dm, "NLR", "outcome")
+
+# Exploration of neutrophils by group
+p3 <- group_stat_table_plot(surv_numerical_t2dm, "neutrofilos", "outcome")
+
+# Exploration of lymphocytes by group
+p4 <- group_stat_table_plot(surv_numerical_t2dm, "linfocitos", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients with T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+#### Part 4
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of PaO2:FiO2 by group
+p1 <- group_stat_table_plot(surv_numerical_t2dm, "PaO2_FiO2", "outcome")
+
+# Exploration of PaO2 by group
+p2 <- group_stat_table_plot(surv_numerical_t2dm, "PaO2", "outcome")
+
+# Exploration of FiO2 by group
+p3 <- group_stat_table_plot(surv_numerical_t2dm, "FiO2", "outcome")
+
+# Exploration of SaO2s by group
+p4 <- group_stat_table_plot(surv_numerical_t2dm, "SaO2", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients with T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+:::
+
+### Numerical variables in patients without T2DM
+
+```{r}
+# Selection of numerical variables of patients without T2DM
 non_numerical_not2dm <- data_match_eda |>
   dplyr::select(where(is.numeric), outcome, t2dm) |>
   dplyr::filter(t2dm == "no")
 ```
 
 ```{r eval=FALSE}
-# Summary statistics of survivors
-lapply(surv_numerical_t2dm, function(x)
-  summary(x))
-
-# Summary statistics of non-survivors
+# Summary statistics of non-T2DM patients
 lapply(non_numerical_not2dm, function(x)
   summary(x))
 ```
 
+::: panel-tabset
+
+#### Part 1
+
 ```{r fig.height=15, fig.width=18, fig.align = 'center'}
 # Exploration of age by group
-p1 <- group_stat_table_plot(surv_numerical_t2dm, "frecuencia_cardiaca", "outcome")
+p1 <- group_stat_table_plot(non_numerical_not2dm, "edad", "outcome")
 
-# Exploration of white-cells by group
-p2 <- group_stat_table_plot(surv_numerical_t2dm, "pafi", "outcome")
+# Exploration of frec_respiratoria by group
+p2 <- group_stat_table_plot(non_numerical_not2dm, "frec_respiratoria", "outcome")
+
+# Exploration of frec_cardiaca by group
+p3 <- group_stat_table_plot(non_numerical_not2dm, "frec_cardiaca", "outcome")
+
+# Exploration of sick time by group
+p4 <- group_stat_table_plot(non_numerical_not2dm, "t_enfermedad", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients without T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+#### Part 2
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of SBP by group
+p1 <- group_stat_table_plot(non_numerical_not2dm, "SBP", "outcome")
+
+# Exploration of DBP by group
+p2 <- group_stat_table_plot(non_numerical_not2dm, "DBP", "outcome")
+
+# Exploration of platelets by group
+p3 <- group_stat_table_plot(non_numerical_not2dm, "platelets", "outcome")
+
+# Exploration of length of stay by group
+p4 <- group_stat_table_plot(non_numerical_not2dm, "len_hosp_stay", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients without T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+#### Part 3
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of WBC by group
+p1 <- group_stat_table_plot(non_numerical_not2dm, "WBC", "outcome")
+
+# Exploration of NLR by group
+p2 <- group_stat_table_plot(non_numerical_not2dm, "NLR", "outcome")
 
 # Exploration of neutrophils by group
-p3 <- group_stat_table_plot(surv_numerical_t2dm, "pafi_cal", "outcome")
+p3 <- group_stat_table_plot(non_numerical_not2dm, "neutrofilos", "outcome")
 
 # Exploration of lymphocytes by group
-p4 <- group_stat_table_plot(surv_numerical_t2dm, "pao2", "outcome")
+p4 <- group_stat_table_plot(non_numerical_not2dm, "linfocitos", "outcome")
 
-p1 + p2 + p3 + p4 + plot_annotation(tag_levels = 'A')
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients without T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
 ```
+
+#### Part 4
+
+```{r fig.height=15, fig.width=18, fig.align = 'center'}
+# Exploration of PaO2:FiO2 by group
+p1 <- group_stat_table_plot(non_numerical_not2dm, "PaO2_FiO2", "outcome")
+
+# Exploration of PaO2 by group
+p2 <- group_stat_table_plot(non_numerical_not2dm, "PaO2", "outcome")
+
+# Exploration of FiO2 by group
+p3 <- group_stat_table_plot(non_numerical_not2dm, "FiO2", "outcome")
+
+# Exploration of SaO2 by group
+p4 <- group_stat_table_plot(non_numerical_not2dm, "SaO2", "outcome")
+
+p1 + p2 + p3 + p4 + plot_annotation(
+  title = 'Patients without T2DM',
+  theme = theme(plot.title = element_text(size = 35, family = "Syne", hjust = 0.5),
+                plot.background = element_rect(fill = "#f0f0f0", color = NA)))
+```
+
+:::
 
 ### Correlation matrix (multicollinearity)
 
 ::: {style="text-align: justify"}
-The correlation between independent variables will be explored in order to identify multicollinearity. The numeric variables are different, with the exception of white-cells and the PaO~2~:FiO~2~ ratio. In the case of using white-cells and neutrophils or lymphocytes, it's possible that the information provided by white-cells may be redundant and generate biased estimates. The same applies to the PaO~2~:FiO~2~ ratio and the FiO~2~. Given the clinical relevance of the PaO₂:FiO₂ ratio, it is preferable to work with this ratio rather than the PaO₂ alone.
+The correlation between independent variables will be explored in order to identify multicollinearity.
 :::
 
 > 📝***NOTE:*** ggplot objects can't process markdown text
@@ -311,28 +487,28 @@ The correlation between independent variables will be explored in order to ident
 ```{r fig.height=9, fig.width=9, fig.align='center'}
 # Selection of numerical variables
 data_num = data_match_eda |>
-  dplyr::select(where(is.numeric), -weights) |>
+  dplyr::select(where(is.numeric), -weights, -pafi_cal) |>
   na.omit()
 
 # Rename variables
 cor_data = rename(
   data_num,
   "Age" = edad,
-  "Respiratory rate" = frecuencia_respiratoria,
-  "Heart rate" = frecuencia_cardiaca,
-  "SBP" = p_a_sistolica,
-  "DBP" = p_a_diastolica,
-  "White-cells" = wbc,
+  "Respiratory rate" = frec_respiratoria,
+  "Heart rate" = frec_cardiaca,
+  "SBP" = SBP,
+  "DBP" = DBP,
+  "WBC" = WBC,
   "Neutrophils" = neutrofilos,
   "Lymphocytes" = linfocitos,
-  "NLR" = nlr,
+  "NLR" = NLR,
   "Platelets" = platelets,
-  "SaO2" = saturacion_de_oxigeno,
-  "FiO2" = fio2,
-  "PaO2:Fio2 ratio" = pafi,
-  "Calculated\nPaO2:Fio2 ratio" = pafi_cal,
-  "PaO2" = pao2,
-  "Follow-up time (days)" = len_hosp_stay
+  "SaO2" = SaO2,
+  "FiO2" = FiO2,
+  "PaO2:FiO2 ratio" = PaO2_FiO2,
+  "PaO2" = PaO2,
+  "Follow-up time (days)" = len_hosp_stay,
+  "Sick time (days)" = t_enfermedad
 )
 
 # Correlation matrix
@@ -347,6 +523,10 @@ FS1
 # Gray visualization
 FS1_grey <- my_ggcorrplor_grey(corr)
 ```
+
+::: {style="text-align: justify"}
+With the exception of WBC and the PaO~2~:FiO~2~ ratio, the numerical variables are independent of each other. In the case of using  white-cells and neutrophils or lymphocytes, it is possible that this information may become redundant and generate biased estimates. The same occurs with the PaO~2~:FiO~2~ ratio and the FiO~2~ or PaO~2~; given the clinical relevance of the PaO~2~:FiO~2~ ratio, it is preferable to work only with the latter.
+:::
 
 # Produce outputs
 
@@ -367,7 +547,7 @@ included_var <- colnames(data_match)
 
 # Check excluded variables
 dplyr::setdiff(excluded_var, included_var)
-#unique(excluded_var, included_var)
+# unique(excluded_var, included_var)
 ```
 
 ## Table 1. Demographic and clinical characteristics of patients
@@ -407,15 +587,15 @@ tbl_1.2 <- data_match |>
 # Vital signs
 tbl_1.3 <- data_match |>
   tbl_summary(
-    include = c(frecuencia_respiratoria:p_a_diastolica, t2dm),
+    include = c(frec_respiratoria:DBP, t2dm),
     by = t2dm,
     percent = "column",
-    statistic = list(frecuencia_cardiaca ~ "{mean} ({sd})"),
+    statistic = list(frec_cardiaca ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
   add_overall() |>
-  add_p(frecuencia_cardiaca ~ "t.test",
-        test.args = frecuencia_cardiaca ~ list(var.equal = TRUE)) |>
+  add_p(frec_cardiaca ~ "t.test",
+        test.args = frec_cardiaca ~ list(var.equal = TRUE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
 ```
@@ -452,7 +632,7 @@ table_1
 # Laboratory findings
 tbl_2.1 <- data_match |>
   tbl_summary(
-    include = c(wbc:platelets.c, t2dm),
+    include = c(WBC:platelets.c, t2dm),
     by = t2dm,
     percent = "column",
     digits = list(all_continuous() ~ c(1, 1))
@@ -468,7 +648,7 @@ tbl_2.1 <- data_match |>
 # Blood gas findings
 tbl_2.2 <- data_match |>
   tbl_summary(
-    include = c(saturacion_de_oxigeno:pao2.c, t2dm),
+    include = c(SaO2:PaO2.c, t2dm),
     by = t2dm,
     percent = "column",
     digits = list(all_continuous() ~ c(1, 1))
@@ -553,14 +733,14 @@ tbl_3.3 <-
   data_match |> 
   dplyr::filter(t2dm == "yes") |>
   tbl_summary(
-    include = c(frecuencia_respiratoria:p_a_diastolica.c, outcome),
+    include = c(frec_respiratoria:DBP.c, outcome),
     by = outcome,
     percent = "column",
-    statistic = list(frecuencia_cardiaca ~ "{mean} ({sd})"),
+    statistic = list(frec_cardiaca ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
-  add_p(frecuencia_cardiaca ~ "t.test",
-        test.args = frecuencia_cardiaca ~ list(var.equal = TRUE)) |>
+  add_p(frec_cardiaca ~ "t.test",
+        test.args = frec_cardiaca ~ list(var.equal = TRUE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
 ```
@@ -604,14 +784,14 @@ tbl_3.6 <-
   data_match |> 
   dplyr::filter(t2dm == "no") |>
   tbl_summary(
-    include = c(frecuencia_respiratoria:p_a_diastolica.c, outcome),
+    include = c(frec_respiratoria:DBP.c, outcome),
     by = outcome,
     percent = "column",
-    statistic = list(frecuencia_cardiaca ~ "{mean} ({sd})"),
+    statistic = list(frec_cardiaca ~ "{mean} ({sd})"),
     digits = list(all_continuous() ~ c(1, 1))
   ) |>
-  add_p(frecuencia_cardiaca ~ "t.test",
-        test.args = frecuencia_cardiaca ~ list(var.equal = FALSE)) |>
+  add_p(frec_cardiaca ~ "t.test",
+        test.args = frec_cardiaca ~ list(var.equal = FALSE)) |>
   bold_p(t = 0.05) |>
   modify_header(all_stat_cols() ~ "**{level}** (n = {n})")
 ```
@@ -663,7 +843,7 @@ tbl_4.1 <-
   data_match |> 
   dplyr::filter(t2dm == "yes") |>
   tbl_summary(
-    include = c(wbc:platelets.c, outcome),
+    include = c(WBC:platelets.c, outcome),
     by = outcome,
     percent = "column",
     digits = list(all_continuous() ~ c(1, 1))
@@ -678,7 +858,7 @@ tbl_4.2 <-
   data_match |> 
   dplyr::filter(t2dm == "yes") |>
   tbl_summary(
-    include = c(saturacion_de_oxigeno:pao2.c, outcome),
+    include = c(SaO2:PaO2.c, outcome),
     by = outcome,
     percent = "column",
     digits = list(all_continuous() ~ c(1, 1))
@@ -710,7 +890,7 @@ tbl_4.4 <-
   data_match |> 
   dplyr::filter(t2dm == "no") |>
   tbl_summary(
-    include = c(wbc:platelets.c, outcome),
+    include = c(WBC:platelets.c, outcome),
     by = outcome,
     percent = "column",
     digits = list(all_continuous() ~ c(1, 1))
@@ -725,7 +905,7 @@ tbl_4.5 <-
   data_match |> 
   dplyr::filter(t2dm == "no") |>
   tbl_summary(
-    include = c(saturacion_de_oxigeno:pao2.c, outcome),
+    include = c(SaO2:PaO2.c, outcome),
     by = outcome,
     percent = "column",
     digits = list(all_continuous() ~ c(1, 1))
@@ -785,10 +965,10 @@ flex_table_4
 ## Table 5. Logistic regression
 
 ::: {style="text-align: justify"}
-In the univariate analysis, variables that were self-reported or did not have enough events were eliminated; this will help to avoid *overfitting* in the subsequent multivariable analysis. Other variables such as sex, smoker, alcoholism, dislip, obesity, malestar_general, anosmia, disgeusia, emesis, diarrea, poliuria, polidipysia, sensorio, p_a_sistolica, p_a_diastolica, platelets.c, pafi_cal.c, antibiotics, corticoides, anticoagulantes, antipaludicos, pronacion, showed *no differences* between groups in the bivariate analysis (Tables 4 and 5).
+In the univariate analysis, variables that were self-reported or did not have enough events were eliminated; this will help to avoid *overfitting* in the subsequent multivariable analysis. Other variables such as sex, smoker, alcoholism, dislip, obesity, malestar_general, anosmia, disgeusia, emesis, diarrea, poliuria, polidipysia, sensorio, SBP, DBP, platelets.c, pafi_cal.c, antibiotics, corticoides, anticoagulantes, antipaludicos, pronacion, showed *no differences* between groups in the bivariate analysis (Tables 4 and 5).
 :::
 
-| Self-reported                                                                                                                                                              | Not enough event (\<10)                                                                                                                                                                                                                               |
+| Self-reported | Not enough event (\<10) |
 |------------------------------------|------------------------------------|
 | dolor_de_garganta, malestar_general, headache, anosmia, disgeusia, diarrea, emesis, astenia, dolor_abdominal, perdida_de_peso, sensorio, poliuria, polidipysia, polifagia. | smoker, alcoholism, dislip, ecv, cancer, hiv, immunsupressive_dis, erc, hemodialisis, asma_bronquial, epc, shock_septico, disf_multiorg, f_hepatica_aguda, f_multiorganica, perdida_de_peso, poliuria, polidipysia, polifagia, sensorio, antibiotics. |
 
@@ -830,19 +1010,19 @@ table_s1.1_uv <- data_uv_dm |>
       tos ~ "Dry cought",
       taquipnea ~ "Tachypnea",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
-      p_a_sistolica.c ~ "SBP (mmHg)",
-      p_a_diastolica.c ~ "DBP (mmHg)",
-      wbc.c ~ "White-cells (×10^−9^/L)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
-      nlr.c ~ "NLR",
-      platelets.c ~ "Platelets (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      fio2.c ~ "FiO~2~ (%)",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio",
-      pao2.c ~ "PaO~2~",
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      frec_respiratoria.c ~ "Respiratory rate (BPM)",
+      SBP.c ~ "SBP (mmHg)",
+      DBP.c ~ "DBP (mmHg)",
+      WBC.c ~ "White-cells (×10^9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^9^/L)",
+      NLR.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      FiO2.c ~ "FiO~2~ (%)",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio",
+      PaO2.c ~ "PaO~2~",
       corticoides ~ "Corticosteroids",
       anticoagulantes ~ "Anticoagulants",
       antipaludicos ~ "Antimalarials",
@@ -878,19 +1058,19 @@ table_s1.2_uv <- data_uv_nondm |>
       tos ~ "Dry cought",
       taquipnea ~ "Tachypnea",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
-      p_a_sistolica.c ~ "SBP (mmHg)",
-      p_a_diastolica.c ~ "DBP (mmHg)",
-      wbc.c ~ "White-cells (×10^−9^/L)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
-      nlr.c ~ "NLR",
-      platelets.c ~ "Platelets (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      fio2.c ~ "FiO~2~ (%)",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio",
-      pao2.c ~ "PaO~2~",
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      frec_respiratoria.c ~ "Respiratory rate (BPM)",
+      SBP.c ~ "SBP (mmHg)",
+      DBP.c ~ "DBP (mmHg)",
+      WBC.c ~ "White-cells (×10^9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^9^/L)",
+      NLR.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      FiO2.c ~ "FiO~2~ (%)",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio",
+      PaO2.c ~ "PaO~2~",
       corticoides ~ "Corticosteroids",
       anticoagulantes ~ "Anticoagulants",
       antipaludicos ~ "Antimalarials",
@@ -900,7 +1080,6 @@ table_s1.2_uv <- data_uv_nondm |>
   bold_labels() |>
   bold_p(t = 0.05) |>
   modify_header(estimate = "**Univariate OR**", p.value = "**p value**")
-table_s1.2_uv
 ```
 
 ```{r}
@@ -932,9 +1111,9 @@ flex_table_s1
 full_multivariable_dm <- glm(
   outcome ~
     edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
-    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
-    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
-    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    frec_cardiaca.c + frec_respiratoria.c + SBP.c +
+    DBP.c + WBC.c + neutrofilos.c + linfocitos.c + NLR.c +
+    platelets.c + SaO2.c + FiO2.c + PaO2_FiO2.c + PaO2.c +
     corticoides + anticoagulantes + antipaludicos + pronacion,
   data = data_uv_dm,
   family = binomial(link = "logit")
@@ -953,19 +1132,19 @@ full_multivariable_dm <- glm(
       tos ~ "Dry cought",
       taquipnea ~ "Tachypnea",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
-      p_a_sistolica.c ~ "SBP (mmHg)",
-      p_a_diastolica.c ~ "DBP (mmHg)",
-      wbc.c ~ "White-cells (×10^−9^/L)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
-      nlr.c ~ "NLR",
-      platelets.c ~ "Platelets (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      fio2.c ~ "FiO~2~ (%)",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio",
-      pao2.c ~ "PaO~2~",
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      frec_respiratoria.c ~ "Respiratory rate (BPM)",
+      SBP.c ~ "SBP (mmHg)",
+      DBP.c ~ "DBP (mmHg)",
+      WBC.c ~ "White-cells (×10^9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^9^/L)",
+      NLR.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      FiO2.c ~ "FiO~2~ (%)",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio",
+      PaO2.c ~ "PaO~2~",
       corticoides ~ "Corticosteroids",
       anticoagulantes ~ "Anticoagulants",
       antipaludicos ~ "Antimalarials",
@@ -984,9 +1163,9 @@ full_multivariable_dm <- glm(
 m1_dm = glm(
   outcome ~
     edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
-    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
-    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
-    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    frec_cardiaca.c + frec_respiratoria.c + SBP.c +
+    DBP.c + WBC.c + neutrofilos.c + linfocitos.c + NLR.c +
+    platelets.c + SaO2.c + FiO2.c + PaO2_FiO2.c + PaO2.c +
     corticoides + anticoagulantes + antipaludicos + pronacion,
   data = data_uv_dm,
   family = binomial(link = "logit")
@@ -1002,11 +1181,11 @@ broom::glance(m1_dm)
 performance::model_performance(m1_dm)
 
 # Check for multicollinearity
-performance::check_collinearity(m1_dm)
+performance::check_collinearity(m1_dm, ci = NULL)
 ```
 
-```{r include=FALSE}
-# Model summaries
+```{r}
+# Model summary with LRT
 epiDisplay::logistic.display(m1_dm, simplified = FALSE, crude = FALSE)
 ```
 
@@ -1017,9 +1196,9 @@ epiDisplay::logistic.display(m1_dm, simplified = FALSE, crude = FALSE)
 full_multivariable_nondm <- glm(
   outcome ~
     edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
-    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
-    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
-    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    frec_cardiaca.c + frec_respiratoria.c + SBP.c +
+    DBP.c + WBC.c + neutrofilos.c + linfocitos.c + NLR.c +
+    platelets.c + SaO2.c + FiO2.c + PaO2_FiO2.c + PaO2.c +
     corticoides + anticoagulantes + antipaludicos + pronacion,
   data = data_uv_nondm,
   family = binomial(link = "logit")
@@ -1038,19 +1217,19 @@ full_multivariable_nondm <- glm(
       tos ~ "Dry cought",
       taquipnea ~ "Tachypnea",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      frecuencia_respiratoria.c ~ "Respiratory rate (BPM)",
-      p_a_sistolica.c ~ "SBP (mmHg)",
-      p_a_diastolica.c ~ "DBP (mmHg)",
-      wbc.c ~ "White-cells (×10^−9^/L)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      linfocitos.c ~ "Lymphocytes (×10^−9^/L)",
-      nlr.c ~ "NLR",
-      platelets.c ~ "Platelets (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      fio2.c ~ "FiO~2~ (%)",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio",
-      pao2.c ~ "PaO~2~",
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      frec_respiratoria.c ~ "Respiratory rate (BPM)",
+      SBP.c ~ "SBP (mmHg)",
+      DBP.c ~ "DBP (mmHg)",
+      WBC.c ~ "White-cells (×10^9^/L)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      linfocitos.c ~ "Lymphocytes (×10^9^/L)",
+      NLR.c ~ "NLR",
+      platelets.c ~ "Platelets (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      FiO2.c ~ "FiO~2~ (%)",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio",
+      PaO2.c ~ "PaO~2~",
       corticoides ~ "Corticosteroids",
       anticoagulantes ~ "Anticoagulants",
       antipaludicos ~ "Antimalarials",
@@ -1068,9 +1247,9 @@ full_multivariable_nondm <- glm(
 m1_non = glm(
   outcome ~
     edad.c + sex + hta + obesity + fever + tos + taquipnea + disnea +
-    frecuencia_cardiaca.c + frecuencia_respiratoria.c + p_a_sistolica.c +
-    p_a_diastolica.c + wbc.c + neutrofilos.c + linfocitos.c + nlr.c +
-    platelets.c + saturacion_de_oxigeno.c + fio2.c + pafi.c + pao2.c +
+    frec_cardiaca.c + frec_respiratoria.c + SBP.c +
+    DBP.c + WBC.c + neutrofilos.c + linfocitos.c + NLR.c +
+    platelets.c + SaO2.c + FiO2.c + PaO2_FiO2.c + PaO2.c +
     corticoides + anticoagulantes + antipaludicos + pronacion,
   data = data_uv_nondm,
   family = binomial(link = "logit")
@@ -1086,11 +1265,11 @@ broom::glance(m1_non)
 performance::model_performance(m1_non)
 
 # Check for multicollinearity
-performance::check_collinearity(m1_non)
+performance::check_collinearity(m1_non, ci = NULL)
 ```
 
-```{r include=FALSE}
-# Model summaries
+```{r}
+# Model summary with LRT
 epiDisplay::logistic.display(m1_non, simplified = FALSE, crude = FALSE)
 ```
 
@@ -1135,16 +1314,16 @@ backward_dm <- m1_dm |>
   stats::step(direction = "backward", trace = FALSE)
 ```
 
-```{r include=FALSE}
-# Summary
+```{r}
+# Model summary
 jtools::summ(backward_dm)
 ```
 
 ```{r fig.height=10, fig.width=10, fig.align='center'}
 m2_dm <-
   glm(
-    outcome ~ edad.c + hta + taquipnea + frecuencia_cardiaca.c + p_a_diastolica.c +
-      neutrofilos.c + saturacion_de_oxigeno.c + pao2.c + antipaludicos,
+    outcome ~ edad.c + hta + taquipnea + frec_cardiaca.c + DBP.c +
+      neutrofilos.c + SaO2.c + PaO2.c + antipaludicos,
     family = binomial(link = "logit"),
     data = data_uv_dm
   )
@@ -1159,11 +1338,11 @@ broom::glance(m2_dm)
 performance::model_performance(m2_dm)
 
 # Check for multicollinearity
-performance::check_collinearity(m2_dm)
+performance::check_collinearity(m2_dm, ci = NULL)
 ```
 
-```{r include=FALSE}
-# Model summaries
+```{r}
+# Model summary
 epiDisplay::logistic.display(m2_dm, simplified = FALSE, crude = FALSE)
 ```
 
@@ -1174,17 +1353,17 @@ backward_non <- m1_non |>
   stats::step(direction = "backward", trace = FALSE)
 ```
 
-```{r include=FALSE}
-# Summary
+```{r}
+# Model summary
 jtools::summ(backward_non)
 ```
 
 ```{r fig.height=10, fig.width=10, fig.align='center'}
 m2_non <-
   glm(
-    outcome ~ edad.c + fever + tos + frecuencia_cardiaca.c + p_a_sistolica.c + 
-      linfocitos.c + nlr.c + platelets.c + saturacion_de_oxigeno.c + fio2.c + 
-      pafi.c + pao2.c + antipaludicos,
+    outcome ~ edad.c + fever + tos + frec_cardiaca.c + SBP.c + 
+      linfocitos.c + NLR.c + platelets.c + SaO2.c + FiO2.c + 
+      PaO2_FiO2.c + PaO2.c + antipaludicos,
     family = binomial(link = "logit"),
     data = data_uv_nondm
   )
@@ -1199,27 +1378,27 @@ broom::glance(m2_non)
 performance::model_performance(m2_non)
 
 # Check for multicollinearity
-performance::check_collinearity(m2_non)
+performance::check_collinearity(m2_non, ci = NULL)
 ```
 
-```{r include=FALSE}
-# Model summaries
+```{r}
+# Model summary with LRT
 epiDisplay::logistic.display(m2_non, simplified = FALSE, crude = FALSE)
 ```
-> 📝***NOTE:*** The backward selection yielded the same results as the complete model
+> 📝***NOTE:*** The forward selection yielded the same results as the complete model
 
 #### Parsimonious model for patients with T2DM
 
 ::: {style="text-align: justify"}
-In these models, only those variables that were statistically significant in previous analyses or that are clinically relevant according to the available evidence will be included. In subsequent analyses, some of the following variables may be excluded due to the potential for multicollinearity and to avoid overfitting: p_a_sistolica.c, p_a_diastolic.c, wbc.c, neutrofilos.c, lymphocytes.c, nlr.c, fio2.c, and pao2.c. The exclusion of fever and cough is based on the observation that these symptoms lack specificity and are commonly observed in the context of most infections.
+In these models, only those variables that were statistically significant in previous analyses or that are clinically relevant according to the available evidence will be included. In subsequent analyses, some of the following variables may be excluded due to the potential for multicollinearity and to avoid overfitting: SBP.c, p_a_diastolic.c, WBC.c, neutrofilos.c, lymphocytes.c, NLR.c, FiO2.c, and PaO2.c. The exclusion of fever and cough is based on the observation that these symptoms lack specificity and are commonly observed in the context of most infections.
 :::
 
 ```{r fig.height=10, fig.width=10, fig.align='center'}
 # Parsimonious formula
 m3_dm <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_dm
   )
@@ -1234,11 +1413,11 @@ broom::glance(m3_dm)
 performance::model_performance(m3_dm)
 
 # Check for multicollinearity
-performance::check_collinearity(m3_dm)
+performance::check_collinearity(m3_dm, ci = NULL)
 ```
 
-```{r include=FALSE}
-# Model summaries
+```{r}
+# Model summary with LRT
 epiDisplay::logistic.display(m3_dm, simplified = FALSE, crude = FALSE)
 ```
 
@@ -1247,8 +1426,8 @@ epiDisplay::logistic.display(m3_dm, simplified = FALSE, crude = FALSE)
 ```{r fig.height=10, fig.width=10, fig.align='center'}
 m3_non <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + nlr.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + NLR.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_nondm
   )
@@ -1263,11 +1442,11 @@ broom::glance(m3_non)
 performance::model_performance(m3_non)
 
 # Check for multicollinearity
-performance::check_collinearity(m3_non)
+performance::check_collinearity(m3_non, ci = NULL)
 ```
 
 ```{r include=FALSE}
-# Model summaries
+# Model summary with LRT
 epiDisplay::logistic.display(m3_non, simplified = FALSE, crude = FALSE)
 ```
 
@@ -1280,10 +1459,10 @@ table_5.1_uv <- data_uv_dm |>
       edad.c,
       hta,
       disnea,
-      frecuencia_cardiaca.c,
+      frec_cardiaca.c,
       neutrofilos.c,
-      saturacion_de_oxigeno.c,
-      pafi.c
+      SaO2.c,
+      PaO2_FiO2.c
     ),
     y = outcome,
     method = glm,
@@ -1298,10 +1477,10 @@ table_5.1_uv <- data_uv_dm |>
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_labels() |>
@@ -1312,8 +1491,8 @@ table_5.1_uv <- data_uv_dm |>
 ```{r}
 table_5.1_mv <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_dm
   ) |>
@@ -1326,10 +1505,10 @@ table_5.1_mv <-
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_p(t = 0.05) |>
@@ -1345,10 +1524,10 @@ table_5.2_uv <- data_uv_nondm |>
       edad.c,
       hta,
       disnea,
-      frecuencia_cardiaca.c,
+      frec_cardiaca.c,
       neutrofilos.c,
-      saturacion_de_oxigeno.c,
-      pafi.c
+      SaO2.c,
+      PaO2_FiO2.c
     ),
     y = outcome,
     method = glm,
@@ -1363,10 +1542,10 @@ table_5.2_uv <- data_uv_nondm |>
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_labels() |>
@@ -1377,8 +1556,8 @@ table_5.2_uv <- data_uv_nondm |>
 ```{r}
 table_5.2_mv <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_nondm
   ) |>
@@ -1391,10 +1570,10 @@ table_5.2_mv <-
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_p(t = 0.05) |>
@@ -1440,10 +1619,10 @@ flex_table_5
 # Compare performance of different models
 compare_performance(m1_dm, m2_dm, m3_dm, verbose = FALSE)
 
-# Radar plot
+# Radar plot to compare models
 plot(compare_performance(m1_dm, m2_dm, m3_dm, rank = TRUE, verbose = FALSE))
 
-# Likelihood Ratio Test
+# Likelihood Ratio Test (LRT for comparison)
 lmtest::lrtest(m2_dm, m3_dm)
 ```
 
@@ -1453,19 +1632,23 @@ lmtest::lrtest(m2_dm, m3_dm)
 # Compare performance of different models
 compare_performance(m1_non, m2_non, m3_non, verbose = FALSE)
 
-# Radar plot
+# Radar plot to compare models
 plot(compare_performance(m1_non, m2_non, m3_non, rank = TRUE, verbose = FALSE))
 
-# Likelihood-Ratio Test (LRT)
+# Likelihood Ratio Test (LRT for comparison)
 lmtest::lrtest(m2_non, m3_non)
 ```
 
 # Sensitivity analysis
 
+::: {style="text-align: justify"}
+In this section, we will conduct sensitivity analyses using different approaches. One approach will employ continuous predictors, while the other will eliminate outliers or influential observations. The focus will be on the differences in the magnitude of the coefficient between the analyses, rather than on the p-values.
+:::
+
 ## Sensitivity to categorization of continuous data
 
 ::: {style="text-align: justify"}
-In this sensitivity analysis, the analyses will be repeated with **continuous data** to ensure that there are no differences in the conclusions. While the categorization of continuous variables has the disadvantage of loss of information, it has the advantage of assuming linearity and being easily interpreted by the non-specialized public.
+This is a sensitivity analysis of the categorization of continuous data. To ensure that there are no differences in the conclusions, the analyses will be repeated with continuous data. Although the categorization of continuous variables results in the loss of information, it has the advantage of assuming linearity and being easily interpreted by the non-specialized public.
 :::
 
 ```{r}
@@ -1483,7 +1666,7 @@ data_sens_nondm <- var_selec_sens(data_match, t2dm, "no")
 ```{r}
 table_sens_uv_dm <- data_sens_dm |>
   tbl_uvregression(
-    include = c(edad:pao2),
+    include = c(edad:PaO2),
     y = outcome,
     method = glm,
     method.args = list(family = binomial),
@@ -1497,19 +1680,19 @@ table_sens_uv_dm <- data_sens_dm |>
       edad ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca ~ "Heart rate (BPM)",
-      frecuencia_respiratoria ~ "Respiratory rate (BPM)",
-      p_a_sistolica ~ "SBP (mmHg)",
-      p_a_diastolica ~ "DBP (mmHg)",
-      wbc ~ "White-cells (×10^−9^/L)",
-      neutrofilos ~ "Neutrophils (×10^−9^/L)",
-      linfocitos ~ "Lymphocytes (×10^−9^/L)",
-      nlr ~ "NLR",
-      platelets ~ "Platelets (×10^−9^/L)",
-      saturacion_de_oxigeno ~ "SaO~2~",
-      fio2 ~ "FiO~2~ (%)",
-      pafi ~ "PaO~2~:FiO~2~ ratio",
-      pao2 ~ "PaO~2~"
+      frec_cardiaca ~ "Heart rate (BPM)",
+      frec_respiratoria ~ "Respiratory rate (BPM)",
+      SBP ~ "SBP (mmHg)",
+      DBP ~ "DBP (mmHg)",
+      WBC ~ "White-cells (×10^9^/L)",
+      neutrofilos ~ "Neutrophils (×10^9^/L)",
+      linfocitos ~ "Lymphocytes (×10^9^/L)",
+      NLR ~ "NLR",
+      platelets ~ "Platelets (×10^9^/L)",
+      SaO2 ~ "SaO~2~",
+      FiO2 ~ "FiO~2~ (%)",
+      PaO2_FiO2 ~ "PaO~2~:FiO~2~ ratio",
+      PaO2 ~ "PaO~2~"
     )
   ) |>
   bold_labels() |>
@@ -1520,11 +1703,11 @@ table_sens_uv_dm <- data_sens_dm |>
 #### Multivariable regression analysis
 
 ```{r include=FALSE}
-# Original model
+# Original model (final) of T2DM patients
 final_model_dm <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_dm
   )
@@ -1532,8 +1715,8 @@ final_model_dm <-
 # Alternative model
 sens_model_dm <-
   glm(
-    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
-      saturacion_de_oxigeno + pafi,
+    outcome ~ edad + hta + disnea + frec_cardiaca + neutrofilos +
+      SaO2 + PaO2_FiO2,
     family = binomial(link = "logit"),
     data = data_sens_dm
   )
@@ -1541,20 +1724,20 @@ sens_model_dm <-
 
 ```{r include=FALSE}
 # Comparison of the regression coefficients and their standard errors
-car::compareCoefs(final_model_dm, sens_model_dm, pvals = T)
+car::compareCoefs(final_model_dm, sens_model_dm, pvals = TRUE)
 ```
 
 ```{r include=FALSE}
 # Impact on the overall multiple degrees of freedom significance test
-car::Anova(final_model_dm, type = 3)
-car::Anova(sens_model_dm, type = 3)
+car::Anova(final_model_dm, type = 3, test.statistic = "LR")
+car::Anova(sens_model_dm, type = 3, test.statistic = "LR")
 ```
 
 ```{r}
 table_sens_mv_dm <-
   glm(
-    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
-      saturacion_de_oxigeno + pafi,
+    outcome ~ edad + hta + disnea + frec_cardiaca + neutrofilos +
+      SaO2 + PaO2_FiO2,
     family = binomial(link = "logit"),
     data = data_sens_dm
   ) |>
@@ -1567,10 +1750,10 @@ table_sens_mv_dm <-
       edad ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca ~ "Heart rate (BPM)",
-      neutrofilos ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno ~ "SaO~2~",
-      pafi ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca ~ "Heart rate (BPM)",
+      neutrofilos ~ "Neutrophils (×10^9^/L)",
+      SaO2 ~ "SaO~2~",
+      PaO2_FiO2 ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_p(t = 0.05) |>
@@ -1584,7 +1767,7 @@ table_sens_mv_dm <-
 ```{r}
 table_sens_uv_non <- data_sens_nondm |>
   tbl_uvregression(
-    include = c(edad:pao2),
+    include = c(edad:PaO2),
     y = outcome,
     method = glm,
     method.args = list(family = binomial),
@@ -1598,19 +1781,19 @@ table_sens_uv_non <- data_sens_nondm |>
       edad ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca ~ "Heart rate (BPM)",
-      frecuencia_respiratoria ~ "Respiratory rate (BPM)",
-      p_a_sistolica ~ "SBP (mmHg)",
-      p_a_diastolica ~ "DBP (mmHg)",
-      wbc ~ "White-cells (×10^−9^/L)",
-      neutrofilos ~ "Neutrophils (×10^−9^/L)",
-      linfocitos ~ "Lymphocytes (×10^−9^/L)",
-      nlr ~ "NLR",
-      platelets ~ "Platelets (×10^−9^/L)",
-      saturacion_de_oxigeno ~ "SaO~2~",
-      fio2 ~ "FiO~2~ (%)",
-      pafi ~ "PaO~2~:FiO~2~ ratio",
-      pao2 ~ "PaO~2~"
+      frec_cardiaca ~ "Heart rate (BPM)",
+      frec_respiratoria ~ "Respiratory rate (BPM)",
+      SBP ~ "SBP (mmHg)",
+      DBP ~ "DBP (mmHg)",
+      WBC ~ "White-cells (×10^9^/L)",
+      neutrofilos ~ "Neutrophils (×10^9^/L)",
+      linfocitos ~ "Lymphocytes (×10^9^/L)",
+      NLR ~ "NLR",
+      platelets ~ "Platelets (×10^9^/L)",
+      SaO2 ~ "SaO~2~",
+      FiO2 ~ "FiO~2~ (%)",
+      PaO2_FiO2 ~ "PaO~2~:FiO~2~ ratio",
+      PaO2 ~ "PaO~2~"
     )
   ) |>
   bold_labels() |>
@@ -1621,11 +1804,11 @@ table_sens_uv_non <- data_sens_nondm |>
 #### Multivariable regression analysis with continuous data
 
 ```{r}
-# Original model
+# Original model (final) of non-2DM patients
 final_model_non <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_nondm
   )
@@ -1633,8 +1816,8 @@ final_model_non <-
 # Alternative model
 sens_model_non <-
   glm(
-    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
-      saturacion_de_oxigeno + pafi,
+    outcome ~ edad + hta + disnea + frec_cardiaca + neutrofilos +
+      SaO2 + PaO2_FiO2,
     family = binomial(link = "logit"),
     data = data_sens_nondm
   )
@@ -1642,21 +1825,21 @@ sens_model_non <-
 
 ```{r include=FALSE}
 # Comparison of the regression coefficients and their standard errors
-car::compareCoefs(final_model_non, sens_model_non, pvals = T)
+car::compareCoefs(final_model_non, sens_model_non, pvals = TRUE)
 ```
 
 ```{r include=FALSE}
 # Impact on the overall multiple degrees of freedom significance test
-car::Anova(final_model_non, type = 3)
-car::Anova(sens_model_non, type = 3)
+car::Anova(final_model_non, type = 3, test.statistic = "LR")
+car::Anova(sens_model_non, type = 3, test.statistic = "LR")
 ```
 
 ```{r}
 
 table_sens_mv_non <-
   glm(
-    outcome ~ edad + hta + disnea + frecuencia_cardiaca + neutrofilos +
-      saturacion_de_oxigeno + pafi,
+    outcome ~ edad + hta + disnea + frec_cardiaca + neutrofilos +
+      SaO2 + PaO2_FiO2,
     family = binomial(link = "logit"),
     data = data_sens_nondm
   ) |>
@@ -1669,10 +1852,10 @@ table_sens_mv_non <-
       edad ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca ~ "Heart rate (BPM)",
-      neutrofilos ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno ~ "SaO~2~",
-      pafi ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca ~ "Heart rate (BPM)",
+      neutrofilos ~ "Neutrophils (×10^9^/L)",
+      SaO2 ~ "SaO~2~",
+      PaO2_FiO2 ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_p(t = 0.05) |>
@@ -1719,17 +1902,17 @@ flex_table_s2
 ## Sensitivity to outliers and influential observations
 
 ::: {style="text-align: justify"}
-This is an analysis of sensitivity to outliers and/or influential observations, which may involve removing those observations, evaluating the effects in the model, and re-evaluating the remaining observations.
+This is a sensitivity analysis of outliers and influential observations, which involves the removal of said observations, subsequent evaluation of the effects on the model, and finally, re-evaluation of the remaining observations.
 :::
 
 ### Patients with T2DM
 
 ```{r}
-# Original model
+# Original model (final) of T2DM patients
 final_model_dm <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_dm
   )
@@ -1755,10 +1938,10 @@ data_uv_nondm[c("144"),
               c("edad.c",
                 "hta",
                 "disnea",
-                "frecuencia_cardiaca.c",
+                "frec_cardiaca.c",
                 "neutrofilos.c",
-                "saturacion_de_oxigeno.c",
-                "pafi.c")]
+                "SaO2.c",
+                "PaO2_FiO2.c")]
 ```
 
 ```{r fig.align='center'}
@@ -1785,7 +1968,7 @@ abline(h = c(-2, 2), lty = 2)
 
 #### Influential observations identification
 
-```{r fig.height=6, fig.align='center'}
+```{r fig.height=7, fig.align='center'}
 # Studentized residuals and hat values
 car::influenceIndexPlot(
   final_model_dm,
@@ -1796,10 +1979,11 @@ car::influenceIndexPlot(
 
 ```{r fig.align='center'}
 # Cook’s distance
-car::influenceIndexPlot(final_model_dm,
-                        vars = "Cook",
-                        id = TRUE,
-                        main = "Cook's distance")
+car::influenceIndexPlot(
+  final_model_dm,
+  vars = "Cook",
+  id = TRUE,
+  main = "Cook's distance")
 ```
 
 ```{r}
@@ -1825,7 +2009,7 @@ sub.dfbetas.dm <- apply(abs(dfbetas.dm) > 0.2, 1, any)
 # dfbetas.dm[sub.dfbetas.dm, ]
 ```
 
-```{r}
+```{r, fig.align='center'}
 par(mfrow = c(2, 4))
 plot(dfbetas.dm[, "(Intercept)"], ylab = "Intercept")
 abline(h = c(-0.2, 0.2), lty = 2)
@@ -1835,13 +2019,13 @@ plot(dfbetas.dm[, "htaYes"], ylab = "Hypertension")
 abline(h = c(-0.2, 0.2), lty = 2)
 plot(dfbetas.dm[, "disneaYes"], ylab = "Dyspnea")
 abline(h = c(-0.2, 0.2), lty = 2)
-plot(dfbetas.dm[, "frecuencia_cardiaca.c>= 100"], ylab = "Heart rate >= 100")
+plot(dfbetas.dm[, "frec_cardiaca.c>= 100"], ylab = "Heart rate >= 100")
 abline(h = c(-0.2, 0.2), lty = 2)
 plot(dfbetas.dm[, "neutrofilos.c> 6.3"], ylab = "Neutrophils > 6.3")
 abline(h = c(-0.2, 0.2), lty = 2)
-plot(dfbetas.dm[, "saturacion_de_oxigeno.c< 90"], ylab = "SaO2 < 90")
+plot(dfbetas.dm[, "SaO2.c< 90"], ylab = "SaO2 < 90")
 abline(h = c(-0.2, 0.2), lty = 2)
-plot(dfbetas.dm[, "pafi.c<= 200"], ylab = "PaO2:FiO2 ratio <= 200")
+plot(dfbetas.dm[, "PaO2_FiO2.c<= 200"], ylab = "PaO2:FiO2 ratio <= 200")
 abline(h = c(-0.2, 0.2), lty = 2)
 ```
 
@@ -1865,26 +2049,25 @@ nrow(subdat_dm)
 # Alternative model
 sens_model_outlier_dm <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = subdat_dm
   )
 
+# Model summary
 jtools::summ(sens_model_outlier_dm)
 ```
 
 ```{r}
 # Comparison of the regression coefficients and their standard errors
-car::compareCoefs(final_model_dm,
-                  sens_model_outlier_dm,
-                  pvals = TRUE)
+car::compareCoefs(final_model_dm, sens_model_outlier_dm, pvals = TRUE)
 ```
 
 ```{r}
 # Impact on the overall multiple degrees of freedom significance test
-car::Anova(final_model_dm, type = 3)
-car::Anova(sens_model_outlier_dm, type = 3)
+car::Anova(final_model_dm, type = 3, test.statistic = "LR")
+car::Anova(sens_model_outlier_dm, type = 3, test.statistic = "LR")
 ```
 
 ::: {style="text-align: justify"}
@@ -1896,8 +2079,8 @@ We removed dyspnea from subsequent analyzes due to overestimation of its regress
 ```{r}
 table_sens_outlier_uv_dm <- subdat_dm |>
   tbl_uvregression(
-    include = c(edad.c, hta, frecuencia_cardiaca.c, neutrofilos.c,
-                saturacion_de_oxigeno.c, pafi.c),
+    include = c(edad.c, hta, frec_cardiaca.c, neutrofilos.c,
+                SaO2.c, PaO2_FiO2.c),
     y = outcome,
     method = glm,
     method.args = list(family = binomial),
@@ -1910,10 +2093,10 @@ table_sens_outlier_uv_dm <- subdat_dm |>
     label = list(
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_labels() |>
@@ -1926,8 +2109,8 @@ table_sens_outlier_uv_dm <- subdat_dm |>
 ```{r}
 table_sens_outlier_mv_dm <-
   glm(
-    outcome ~ edad.c + hta + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = subdat_dm
   ) |>
@@ -1939,10 +2122,10 @@ table_sens_outlier_mv_dm <-
     label = list(
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_p(t = 0.05) |>
@@ -1952,10 +2135,11 @@ table_sens_outlier_mv_dm <-
 ### Patients without T2DM
 
 ```{r}
+# Original model (final) of non-T2DM patients
 final_model_non <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = data_uv_nondm
   )
@@ -1984,10 +2168,10 @@ data_uv_nondm[c("560", "608"),
               c("edad.c",
                 "hta",
                 "disnea",
-                "frecuencia_cardiaca.c",
+                "frec_cardiaca.c",
                 "neutrofilos.c",
-                "saturacion_de_oxigeno.c",
-                "pafi.c")]
+                "SaO2.c",
+                "PaO2_FiO2.c")]
 ```
 
 ```{r fig.align='center'}
@@ -2014,7 +2198,7 @@ abline(h = c(-2, 2), lty = 2)
 
 #### Influential observations identification
 
-```{r fig.height=6, fig.align='center'}
+```{r fig.height=7, fig.align='center'}
 # Studentized residuals and hat values
 car::influenceIndexPlot(
   final_model_non,
@@ -2025,10 +2209,11 @@ car::influenceIndexPlot(
 
 ```{r fig.align='center'}
 # Cook’s distance
-car::influenceIndexPlot(final_model_non,
-                        vars = "Cook",
-                        id = TRUE,
-                        main = "Cook's distance")
+car::influenceIndexPlot(
+  final_model_non,
+  vars = "Cook",
+  id = TRUE,
+  main = "Cook's distance")
 ```
 
 ```{r}
@@ -2054,7 +2239,7 @@ sub.dfbetas.non <- apply(abs(dfbetas.non) > 0.2, 1, any)
 # dfbetas.non[sub.dfbetas.non, ]
 ```
 
-```{r}
+```{r, fig.align='center'}
 par(mfrow = c(2, 4))
 plot(dfbetas.non[, "(Intercept)"], ylab = "Intercept")
 abline(h = c(-0.2, 0.2), lty = 2)
@@ -2062,13 +2247,13 @@ plot(dfbetas.non[, "htaYes"], ylab = "Hypertension")
 abline(h = c(-0.2, 0.2), lty = 2)
 plot(dfbetas.non[, "disneaYes"], ylab = "Dyspnea")
 abline(h = c(-0.2, 0.2), lty = 2)
-plot(dfbetas.non[, "frecuencia_cardiaca.c>= 100"], ylab = "Heart rate >= 100")
+plot(dfbetas.non[, "frec_cardiaca.c>= 100"], ylab = "Heart rate >= 100")
 abline(h = c(-0.2, 0.2), lty = 2)
 plot(dfbetas.non[, "neutrofilos.c> 6.3"], ylab = "Neutrophils > 6.3")
 abline(h = c(-0.2, 0.2), lty = 2)
-plot(dfbetas.non[, "saturacion_de_oxigeno.c< 90"], ylab = "SaO2 < 90")
+plot(dfbetas.non[, "SaO2.c< 90"], ylab = "SaO2 < 90")
 abline(h = c(-0.2, 0.2), lty = 2)
-plot(dfbetas.non[, "pafi.c<= 200"], ylab = "PaO2:FiO2 ratio <= 200")
+plot(dfbetas.non[, "PaO2_FiO2.c<= 200"], ylab = "PaO2:FiO2 ratio <= 200")
 abline(h = c(-0.2, 0.2), lty = 2)
 ```
 
@@ -2092,26 +2277,25 @@ nrow(subdat_non)
 # Alternative model
 sens_model_outlier_non <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = subdat_non
   )
 
+# Model summary
 jtools::summ(sens_model_outlier_non)
 ```
 
 ```{r}
 # Comparison of the regression coefficients and their standard errors
-car::compareCoefs(final_model_non,
-                  sens_model_outlier_non,
-                  pvals = TRUE)
+car::compareCoefs(final_model_non, sens_model_outlier_non, pvals = TRUE)
 ```
 
 ```{r}
 # Impact on the overall multiple degrees of freedom significance test
-car::Anova(final_model_non, type = 3)
-car::Anova(sens_model_outlier_non, type = 3)
+car::Anova(final_model_non, type = 3, test.statistic = ("LR"))
+car::Anova(sens_model_outlier_non, type = 3, test.statistic = ("LR"))
 ```
 
 #### Univariate regression analysis
@@ -2119,8 +2303,8 @@ car::Anova(sens_model_outlier_non, type = 3)
 ```{r}
 table_sens_outlier_uv_non <- subdat_non |>
   tbl_uvregression(
-    include = c(edad.c, hta, disnea, frecuencia_cardiaca.c, neutrofilos.c,
-                saturacion_de_oxigeno.c, pafi.c),
+    include = c(edad.c, hta, disnea, frec_cardiaca.c, neutrofilos.c,
+                SaO2.c, PaO2_FiO2.c),
     y = outcome,
     method = glm,
     method.args = list(family = binomial),
@@ -2134,10 +2318,10 @@ table_sens_outlier_uv_non <- subdat_non |>
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_labels() |>
@@ -2150,8 +2334,8 @@ table_sens_outlier_uv_non <- subdat_non |>
 ```{r}
 table_sens_outlier_mv_non <-
   glm(
-    outcome ~ edad.c + hta + disnea + frecuencia_cardiaca.c + neutrofilos.c +
-      saturacion_de_oxigeno.c + pafi.c,
+    outcome ~ edad.c + hta + disnea + frec_cardiaca.c + neutrofilos.c +
+      SaO2.c + PaO2_FiO2.c,
     family = binomial(link = "logit"),
     data = subdat_non
   ) |>
@@ -2164,10 +2348,10 @@ table_sens_outlier_mv_non <-
       edad.c ~ "Age (years)",
       hta ~ "Hypertension",
       disnea ~ "Dyspnea",
-      frecuencia_cardiaca.c ~ "Heart rate (BPM)",
-      neutrofilos.c ~ "Neutrophils (×10^−9^/L)",
-      saturacion_de_oxigeno.c ~ "SaO~2~",
-      pafi.c ~ "PaO~2~:FiO~2~ ratio"
+      frec_cardiaca.c ~ "Heart rate (BPM)",
+      neutrofilos.c ~ "Neutrophils (×10^9^/L)",
+      SaO2.c ~ "SaO~2~",
+      PaO2_FiO2.c ~ "PaO~2~:FiO~2~ ratio"
     )
   ) |>
   bold_p(t = 0.05) |>
@@ -2216,7 +2400,7 @@ flex_table_s3
 ```
 
 ::: {style="text-align: justify"}
-We performed a sensitivity analysis to categorization of continuous data and our results did not change significantly except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil did so for non-T2DM patients (Table S2). In addition, we performed a sensitivity analysis to outliers and influential observations and we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. In patients with T2DM, all variables became independent predictors with the exception of PaO~2~:FiO~2~ ratio and dyspnea, the latter was not analyzed due to its overestimation. In patients without T2DM, all variables became independent predictors with the exception of hypertension (Table S3). While we still should focus on effect sizes rather than p-values, some of these changes are notably large.
+We performed a sensitivity analysis to categorization of continuous data and our results were similar to those shown in the main analyses, except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil did so for non-T2DM patients (Table S2). In addition, we performed a sensitivity analysis to outliers and influential observations and we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. In patients with T2DM, all variables became independent predictors with the exception of PaO~2~:FiO~2~ ratio and dyspnea, the latter was not analyzed due to its overestimation. In patients without T2DM, all variables became independent predictors with the exception of hypertension (Table S3). While we still should focus on effect sizes rather than p-values, some of these changes are notably large.
 :::
 
 # Concordance statistic
@@ -2246,21 +2430,35 @@ survival::concordance(sens_model_non)
 The concordance statistic was 0.78 for T2DM model and 0.77 for non-T2DM model. Sensibility analysis showed a value of 0.81 and 0.80 for T2DM model and non-T2DM model, respectively.
 :::
 
-# Goodness-of-fit
+# Goodness-of-fit (GOF)
 
 ## Hosmer-Lemeshow test
 
 ```{r}
+# Original model (final) of T2DM patients
+ResourceSelection::hoslem.test(final_model_dm$y, final_model_dm$fitted.values)
 
+# Original model (final) of non-T2DM patients
+ResourceSelection::hoslem.test(final_model_non$y, final_model_non$fitted.values)
 ```
+::: {style="text-align: justify"}
+The p-value of the Hosmer-Lemeshow GOF test for both models indicates that the null hypothesis of a perfect fit is not rejected, and we conclude that the fit is adequate.
+:::
 
 ## Calibration plot
 
-```{r}
+```{r, fig.align='center'}
+# Original model (final) of T2DM patients
+calibration.plot(final_model_dm, show.bins = TRUE, show.points = TRUE)
+```
 
+```{r, fig.align='center'}
+# Original model (final) of non-T2DM patients
+calibration.plot(final_model_non, show.bins = TRUE,show.points = TRUE)
 ```
 
 ::: {style="text-align: justify"}
+The calibration plot corroborates the conclusion of the Hosmer-Lemeshow test. However, the confidence intervals overlap the continuous diagonal line due to the wide range of values and some triangles are situated far from the continuous diagonal line for the model in patients with T2DM. This phenomenon is not observed in the model for patients without T2DM, which has a larger sample size. Therefore, the fit is more adequate for the model in patients without T2DM than in patients with T2DM. 
 :::
 
 # Dimensional reduction
@@ -2325,7 +2523,7 @@ factoextra::get_eigenvalue(new_dim.non) |>
 To visualize the PCA, the `ggplot2` and `factoextra` packages can be utilized. Plots such as scree plots can be used to understand the variance explained (eigenvalues) by each component or biplots to understand the relationship between variables and components and how the data is distributed across these new dimensions (principal components). This helps to reveal patterns and clusters. A scree plot assesses the contribution of each component to the total variance. It determines the optimal number of principal components to keep, streamlines the analysis by focusing on the most important components.
 :::
 
-```{r fig.height=7, fig.width=7, fig.align='center'}
+```{r fig.height=7, fig.width=8, fig.align='center'}
 # Plot variances of new dimensions of patients with T2DM
 fviz_eig(
   new_dim.dm,
@@ -2333,11 +2531,12 @@ fviz_eig(
   choice = "variance",
   barfill = "#99CC00FF",
   barcolor = "#99CC00FF",
-  xlab = "New dimensions of patients with T2DM"
+  xlab = "New dimensions of patients with T2DM",
+  ggtheme = theme_539()
   )
 ```
 
-```{r fig.height=7, fig.width=7, fig.align='center'}
+```{r fig.height=7, fig.width=8, fig.align='center'}
 # Plot variances of new dimensions of patients without T2DM
 fviz_eig(
   new_dim.non,
@@ -2345,7 +2544,8 @@ fviz_eig(
   choice = "variance",
   barfill = "#99CC00FF",
   barcolor = "#99CC00FF",
-  xlab = "New dimensions of patients without T2DM"
+  xlab = "New dimensions of patients without T2DM",
+  ggtheme = theme_539()
   )  
 ```
 
@@ -2356,13 +2556,13 @@ fviz_eig(
 var.dm <- get_pca_var(new_dim.dm)
 
 # Coordinates for the variables
-head(var.dm$coord, 5)
+head(var.dm$coor[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 
 # Correlations between variables and dimensions
-head(var.dm$cor, 5)
+head(var.dm$cor[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 
-# Quality of representation (Cos2) for the  variables on the dimensions
-head(var.dm$cos2, 5)
+# Quality of representation (Cos2) for the variables on the dimensions
+head(var.dm$cos2[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 ```
 
 ```{r fig.height=7, fig.width=7, fig.align='center'}
@@ -2370,56 +2570,91 @@ head(var.dm$cos2, 5)
 my_ggcorrplor(var.dm$cos2)
 ```
 
-```{r fig.height=8, fig.width=10, fig.align='center'}
-# Cos2 plot for the variables on the dimensions 1
-x1 <- fviz_cos2(new_dim.dm, choice = "var", axes = 1)
+```{r fig.height=9, fig.width=10, fig.align='center'}
+# Cos2 plot of the top 10 variables in the dimension 1
+x1 <- fviz_cos2(
+  new_dim.dm,
+  choice = "var",
+  axes = 1,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Cos2 plot for the variables on the dimensions 2
-x2 <- fviz_cos2(new_dim.dm, choice = "var", axes = 2)
+# Cos2 plot of the top 10 variables in the dimension 2
+x2 <- fviz_cos2(
+  new_dim.dm,
+  choice = "var",
+  axes = 2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Cos2 plot for the variables on the dimensions 3
-x3 <- fviz_cos2(new_dim.dm, choice = "var", axes = 3)
+# Cos2 plot of the top 10 variables in the dimension 3
+x3 <- fviz_cos2(
+  new_dim.dm,
+  choice = "var",
+  axes = 3,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Cos2 plot for the variables on the dimensions 4
-x4 <- fviz_cos2(new_dim.dm, choice = "var", axes = 4)
+# Cos2 plot of the top 10 variables in the dimension 4
+x4 <- fviz_cos2(
+  new_dim.dm,
+  choice = "var",
+  axes = 4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Arrange multiple plots
 cos2_plot <- ggpubr::ggarrange(x1, x2, x3, x4,
                                ncol = 2, nrow = 2)
 
-annotate_figure(cos2_plot,
-                top = text_grob(
-                  "Cos2 in patients with T2DM",
-                  face = "bold",
-                  size = 16
-                ))
+annotate_figure(
+  cos2_plot,
+  top = text_grob(
+    "Cos2 in patients with T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ```{r}
-# Plot of 10 variables with highest cos2 on PC1 and PC2
-a <- fviz_cos2(new_dim.dm,
-               choice = "var",
-               axes = 1:2,
-               top = 10)
+# Plot of the 10 variables with the highest cos2 in PC1 and PC2
+a <- fviz_cos2(
+  new_dim.dm,
+  choice = "var",
+  axes = 1:2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Plot of 10 variables with highest cos2 on PC3 and PC4
-b <- fviz_cos2(new_dim.dm,
-               choice = "var",
-               axes = 3:4,
-               top = 10)
+# Plot of the 10 variables with the highest cos2 in PC3 and PC4
+b <- fviz_cos2(
+  new_dim.dm,
+  choice = "var",
+  axes = 3:4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by cos2 values
 c <- fviz_pca_var(
   new_dim.dm,
   col.var.dm = "cos2",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
-  repel = TRUE
-  ) # repel = TRUE avoid text overlapping
+  repel = TRUE,
+  # repel = TRUE avoid text overlapping
+  ggtheme = theme_540()
+) 
 ```
 
 ```{r}
 # Contributions of the variables on the dimensions
-head(var.dm$contrib, 5)
+head(var.dm$contrib[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 ```
 
 ```{r fig.height=7, fig.width=7, fig.align='center'}
@@ -2428,75 +2663,103 @@ corrplot(var.dm$contrib, is.corr = FALSE)
 ```
 
 ```{r fig.height=8, fig.width=10, fig.align='center'}
-# Contribution plot of the top 10 variables on PC1
-x1 <- fviz_contrib(new_dim.dm,
-                   choice = "var",
-                   axes = 1,
-                   top = 10)
+# Contribution plot of the top 10 variables in the dimension 1
+y1 <- fviz_contrib(
+  new_dim.dm,
+  choice = "var",
+  axes = 1,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Contribution plot of the top 10 variables on PC2
-x2 <- fviz_contrib(new_dim.dm,
-                   choice = "var",
-                   axes = 2,
-                   top = 10)
+y2 <- fviz_contrib(
+  new_dim.dm,
+  choice = "var",
+  axes = 2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Contribution plot of the top 10 variables on PC3
-x3 <- fviz_contrib(new_dim.dm,
-                   choice = "var",
-                   axes = 3,
-                   top = 10)
+y3 <- fviz_contrib(
+  new_dim.dm,
+  choice = "var",
+  axes = 3,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Contribution plot of the top 10 variables on PC4
-x4 <- fviz_contrib(new_dim.dm,
-                   choice = "var",
-                   axes = 4,
-                   top = 10)
+y4 <- fviz_contrib(
+  new_dim.dm,
+  choice = "var",
+  axes = 4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Arrange multiple plots
-contrib_plot <- ggpubr::ggarrange(x1, x2, x3, x4,
-                                  ncol = 2, nrow = 2)
+contrib_plot <- ggpubr::ggarrange(
+  y1, y2, y3, y4, ncol = 2, nrow = 2)
 
-annotate_figure(contrib_plot,
-                top = text_grob(
-                  "Contribution in patients with T2DM",
-                  face = "bold",
-                  size = 16
-                ))
+annotate_figure(
+  contrib_plot,
+  top = text_grob(
+    "Contribution in patients with T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) +
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ```{r}
 # Plot of 10 variables with the highest contribution on PC1 and PC2
-d <- fviz_contrib(new_dim.dm,
-                  choice = "var",
-                  axes = 1:2,
-                  top = 10)
+d <- fviz_contrib(
+  new_dim.dm,
+  choice = "var",
+  axes = 1:2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Plot of 10 variables with the highest contribution on PC3 and PC4
-e <- fviz_contrib(new_dim.dm,
-                  choice = "var",
-                  axes = 3:4,
-                  top = 10)
+e <- fviz_contrib(
+  new_dim.dm,
+  choice = "var",
+  axes = 3:4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by contributions values
 f <- fviz_pca_var(
   new_dim.dm,
   col.var.dm = "contrib",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
-  repel = TRUE
-  )
+  repel = TRUE,
+  ggtheme = theme_540()
+)
 ```
 
 ```{r fig.height=12, fig.width=12, fig.align='center'}
 # Arrange multiple plots
-pca_dm <- ggpubr::ggarrange(a, d, b, e, c, f,
-                             ncol = 2, nrow = 3,
-                             labels = c("A)", "B)", "C)", "D)", "E)", "F)"),
-                             legend = "right")
+pca_dm <- ggpubr::ggarrange(
+  a, d, b, e, c, f,
+  ncol = 2, nrow = 3,
+  legend = "right"
+  )
 
-annotate_figure(pca_dm,
-                top = text_grob("PCA in patients with T2DM",
-                                face = "bold",
-                                size = 16))
+annotate_figure(
+  pca_dm,
+  top = text_grob(
+    "PCA in patients with T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ### Variables for patients without T2DM
@@ -2506,13 +2769,13 @@ annotate_figure(pca_dm,
 var.non <- get_pca_var(new_dim.non)
 
 # Coordinates for the variables
-head(var.non$coord, 5)
+head(var.non$coor[order(var.non$cor[, 1], decreasing = TRUE),], 5)
 
 # Correlations between variables and dimensions
-head(var.non$cor, 5)
+head(var.non$cor[order(var.non$cor[, 1], decreasing = TRUE),], 7)
 
-# Quality of representation (Cos2) for the  variables on the dimensions
-head(var.non$cos2, 5)
+# Quality of representation (Cos2) for the variables on the dimensions
+head(var.non$cos2[order(var.non$cor[, 1], decreasing = TRUE),], 7)
 ```
 
 ```{r fig.height=7, fig.width=7, fig.align='center'}
@@ -2521,55 +2784,89 @@ my_ggcorrplor(var.non$cos2)
 ```
 
 ```{r fig.height=8, fig.width=10, fig.align='center'}
-# Cos2 plot for the variables on dimensions 1
-x5 <- fviz_cos2(new_dim.non, choice = "var", axes = 1)
+# Cos2 plot of the top 10 variables in the dimension 1
+x5 <- fviz_cos2(
+  new_dim.non,
+  choice = "var",
+  axes = 1,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Cos2 plot for the variables on dimensions 2
-x6 <- fviz_cos2(new_dim.non, choice = "var", axes = 2)
+# Cos2 plot of the top 10 variables in the dimension 2
+x6 <- fviz_cos2(
+  new_dim.non,
+  choice = "var",
+  axes = 2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Cos2 plot for the variables on dimensions 3
-x7 <- fviz_cos2(new_dim.non, choice = "var", axes = 3)
+# Cos2 plot of the top 10 variables in the dimension 3
+x7 <- fviz_cos2(
+  new_dim.non,
+  choice = "var",
+  axes = 3,
+  top = 10,
+  ggtheme = theme_540()
+)
 
-# Cos2 plot for the variables on dimensions 4
-x8 <- fviz_cos2(new_dim.non, choice = "var", axes = 4)
+# Cos2 plot of the top 10 variables in the dimension 4
+x8 <- fviz_cos2(
+  new_dim.non,
+  choice = "var",
+  axes = 4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Arrange multiple plots
-contrib_plot <- ggpubr::ggarrange(x5, x6, x7, x8,
-                                  ncol = 2, nrow = 2)
+contrib_plot <- ggpubr::ggarrange(
+  x5, x6, x7, x8, ncol = 2, nrow = 2)
 
-annotate_figure(contrib_plot,
-                top = text_grob(
-                  "Cos2 in patients without T2DM",
-                  face = "bold",
-                  size = 16
-                ))
+annotate_figure(
+  contrib_plot,
+  top = text_grob(
+    "Cos2 in patients without T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ```{r}
 # Plot of 10 variables with highest cos2 on PC1 and PC2
-a <- fviz_cos2(new_dim.non,
-               choice = "var",
-               axes = 1:2,
-               top = 10)
+a <- fviz_cos2(
+  new_dim.non,
+  choice = "var",
+  axes = 1:2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Plot of 10 variables with highest cos2 on PC3 and PC4
-b <- fviz_cos2(new_dim.non,
-               choice = "var",
-               axes = 3:4,
-               top = 10)
+b <- fviz_cos2(
+  new_dim.non,
+  choice = "var",
+  axes = 3:4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by cos2 values
 c <- fviz_pca_var(
   new_dim.non,
   col.var.non = "cos2",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
-  repel = TRUE
-  ) # repel = TRUE avoid text overlapping
+  repel = TRUE,
+  ggtheme = theme_540()
+)
 ```
 
 ```{r}
 # Contributions of the variables on the dimensions
-head(var.non$contrib, 5)
+head(var.non$contrib[order(var.non$cor[, 1], decreasing = TRUE),], 7)
 ```
 
 ```{r fig.height=7, fig.width=7, fig.align='center'}
@@ -2579,74 +2876,101 @@ corrplot(var.non$contrib, is.corr = FALSE)
 
 ```{r fig.height=8, fig.width=10, fig.align='center'}
 # Contribution plot of the top 10 variables on PC1
-x5 <- fviz_contrib(new_dim.non,
-                   choice = "var",
-                   axes = 1,
-                   top = 10)
+y5 <- fviz_contrib(
+  new_dim.non,
+  choice = "var",
+  axes = 1,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Contribution plot of the top 10 variables on PC2
-x6 <- fviz_contrib(new_dim.non,
-                   choice = "var",
-                   axes = 2,
-                   top = 10)
+y6 <- fviz_contrib(
+  new_dim.non,
+  choice = "var",
+  axes = 2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Contribution plot of the top 10 variables on PC3
-x7 <- fviz_contrib(new_dim.non,
-                   choice = "var",
-                   axes = 3,
-                   top = 10)
+y7 <- fviz_contrib(
+  new_dim.non,
+  choice = "var",
+  axes = 3,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Contribution plot of the top 10 variables on PC4
-x8 <- fviz_contrib(new_dim.non,
-                   choice = "var",
-                   axes = 4,
-                   top = 10)
+y8 <- fviz_contrib(
+  new_dim.non,
+  choice = "var",
+  axes = 4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Arrange multiple plots
-contrib_plot <- ggpubr::ggarrange(x5, x6, x7, x8,
+contrib_plot <- ggpubr::ggarrange(y5, y6, y7, y8,
                                   ncol = 2, nrow = 2)
 
-annotate_figure(contrib_plot,
-                top = text_grob(
-                  "Contribution in patients without T2DM",
-                  face = "bold",
-                  size = 16
-                ))
+annotate_figure(
+  contrib_plot,
+  top = text_grob(
+    "Contribution in patients without T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ```{r}
 # Plot of 10 variables with the highest contribution on PC1 and PC2
-d <- fviz_contrib(new_dim.non,
-                  choice = "var",
-                  axes = 1:2,
-                  top = 10)
+d <- fviz_contrib(
+  new_dim.non,
+  choice = "var",
+  axes = 1:2,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Plot of 10 variables with the highest contribution on PC3 and PC4
-e <- fviz_contrib(new_dim.non,
-                  choice = "var",
-                  axes = 3:4,
-                  top = 10)
+e <- fviz_contrib(
+  new_dim.non,
+  choice = "var",
+  axes = 3:4,
+  top = 10,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by contributions values
 f <- fviz_pca_var(
   new_dim.dm,
   col.var.dm = "contrib",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
-  repel = TRUE
+  repel = TRUE,
+  ggtheme = theme_540()
 )
 ```
 
 ```{r fig.height=12, fig.width=12, fig.align='center'}
 # Arrange multiple plots
-pca_non <- ggpubr::ggarrange(a, d, b, e, c, f,
-                             ncol = 2, nrow = 3,
-                             labels = c("A)", "B)", "C)", "D)", "E)", "F)"),
-                             legend = "right")
+pca_non <- ggpubr::ggarrange(
+  a, d, b, e, c, f,
+  ncol = 2, nrow = 3,
+  legend = "right")
 
-annotate_figure(pca_non,
-                top = text_grob("PCA in patients without T2DM",
-                                face = "bold",
-                                size = 16))
+annotate_figure(
+  pca_non, 
+  top = text_grob(
+    "PCA in patients without T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ### Individuals with T2M
@@ -2656,88 +2980,106 @@ annotate_figure(pca_non,
 ind <- get_pca_ind(new_dim.dm)
 
 # Coordinates for the individuals
-head(ind$coord, 5)
+head(ind$coord[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 
 # Cos2 of the individuals on dimensions
-head(ind$cos2, 5)
+head(ind$cos2[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 ```
 
 ```{r}
-# Plot of 30 individuals with the highest cos2 on PC1 and PC2
-a <- fviz_cos2(new_dim.dm,
-               choice = "ind",
-               axes = 1:2,
-               top = 30)
+# Plot of 20 patients with the highest cos2 in PC1 and PC2
+a <- fviz_cos2(
+  new_dim.dm,
+  choice = "ind",
+  axes = 1:2,
+  top = 20,
+  ggtheme = theme_540()
+)
 
-# Plot of 30 individuals with the highest cos2 on PC3 and PC4
-b <- fviz_cos2(new_dim.dm,
-               choice = "ind",
-               axes = 3:4,
-               top = 30)
+# Plot of 20 patients with the highest cos2 in PC3 and PC4
+b <- fviz_cos2(
+  new_dim.dm,
+  choice = "ind",
+  axes = 3:4,
+  top = 20,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by cos2 values
 c <- fviz_pca_ind(
   new_dim.dm,
   col.ind = "cos2",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
-  repel = TRUE
+  repel = TRUE,
+  ggtheme = theme_540()
 )
 ```
 
 ```{r}
 # Contributions of the individuals on dimensions
-head(ind$contrib, 5)
+head(ind$contrib[order(var.dm$cor[, 1], decreasing = TRUE),], 5)
 ```
 
 ```{r}
-# Plot of 30 individuals with the highest contribution on PC1 and PC2
-d <- fviz_contrib(new_dim.dm,
-                  choice = "ind",
-                  axes = 1:2,
-                  top = 30)
+# Plot of the 20 individuals with the highest contribution in PC1 and PC2
+d <- fviz_contrib(
+  new_dim.dm,
+  choice = "ind",
+  axes = 1:2,
+  top = 20,
+  ggtheme = theme_540()
+)
 
-# Plot of 30 individuals with the highest contribution on PC3 and PC4
-e <- fviz_contrib(new_dim.dm,
-                  choice = "ind",
-                  axes = 3:4,
-                  top = 30)
+# Plot of the 20 individuals with the highest contribution in PC3 and PC4
+e <- fviz_contrib(
+  new_dim.dm,
+  choice = "ind",
+  axes = 3:4,
+  top = 20,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by contributions values
 f <- fviz_pca_ind(
   new_dim.dm,
   col.ind = "contrib",
-  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26")
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  ggtheme = theme_540()
 )
 ```
 
 ```{r fig.height=12, fig.width=12, fig.align='center'}
 # Arrange multiple plots
-pca_ind.dm <- ggpubr::ggarrange(a, d, b, e, c, f, 
-                                ncol = 2, nrow = 3, 
-                                labels = c("A)", "B)", "C)", "D)", "E)", "F)"), 
-                                legend = "right")
+pca_ind.dm <- ggpubr::ggarrange(
+  a, d, b, e, c, f, ncol = 2, nrow = 3, 
+  legend = "right")
 
-annotate_figure(pca_ind.dm,
-                top = text_grob("Patients with T2DM",
-                                face = "bold",
-                                size = 16))
+annotate_figure(
+  pca_ind.dm,
+  top = text_grob(
+    "Patients with T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) +
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ```{r}
 # Plot of individuals and color by outcome on PC1 and PC2
-ind.graph <- fviz_pca_ind(
+ind_plot.dm_1 <- fviz_pca_ind(
   new_dim.dm,
   axes = 1:2,
   geom.ind = "point",
   col.ind = old_dim.dm$outcome,
-  palette = "igv",
   addEllipses = TRUE,
   mean.point = FALSE,
-  ggtheme = theme_pubr()
+  palette = c("#C03728", "#919C4C"),
+  ggtheme = theme_pomological(base_family = "Homemade Apple")
 )
 
 a <- ggpubr::ggpar(
-  ind.graph,
+  ind_plot.dm_1,
   title = element_blank(),
   xlab = "PC1 (22.8%)",
   ylab = "PC2 (12.2%)",
@@ -2747,19 +3089,19 @@ a <- ggpubr::ggpar(
   )
 
 # Plot of individuals and color by outcome on PC3 and PC4
-ind.graph <- fviz_pca_ind(
+ind_plot.dm_2 <- fviz_pca_ind(
   new_dim.dm,
   axes = 3:4,
   geom.ind = "point",
   col.ind = old_dim.dm$outcome,
-  palette = "igv",
   addEllipses = TRUE,
   mean.point = FALSE,
-  ggtheme = theme_pubr()
+  palette = c("#C03728", "#919C4C"),
+  ggtheme = theme_pomological(base_family = "Homemade Apple")
   )
 
 b <- ggpubr::ggpar(
-  ind.graph,
+  ind_plot.dm_2,
   title = element_blank(),
   xlab = "PC3 (11.5%)",
   ylab = "PC2 (9.9%)",
@@ -2771,13 +3113,16 @@ b <- ggpubr::ggpar(
 
 ```{r fig.height=6, fig.width=14, fig.align='center'}
 # Arrange multiple plots
-ggpubr::ggarrange(
+ind_plot_dm <- ggpubr::ggarrange(
   a, b,
   ncol = 2, nrow = 1,
   labels = c("A)", "B)"),
   legend = "bottom",
-  common.legend = TRUE
-  )
+  common.legend = TRUE,
+  font.label = list(family = "Homemade Apple")) + 
+  ggplot2::theme(panel.background = element_rect(fill = "#FFFEEA", color = NA))
+
+paint_pomological(ind_plot_dm, width = 1000, height = 500)
 ```
 
 ### Individuals without T2M
@@ -2787,88 +3132,106 @@ ggpubr::ggarrange(
 ind <- get_pca_ind(new_dim.non)
 
 # Coordinates for the individuals
-head(ind$coord, 5)
+head(ind$coord[order(var.non$cor[, 1], decreasing = TRUE),], 5)
 
 # Cos2 of the individuals on dimensions
-head(ind$cos2, 5)
+head(ind$cos2[order(var.non$cor[, 1], decreasing = TRUE),], 5)
 ```
 
 ```{r}
-# Plot of 30 individuals with the highest cos2 on PC1 and PC2
-a <- fviz_cos2(new_dim.non,
-               choice = "ind",
-               axes = 1:2,
-               top = 30)
+# Plot of 20 patients with the highest cos2 in PC1 and PC2
+a <- fviz_cos2(
+  new_dim.non,
+  choice = "ind",
+  axes = 1:2,
+  top = 20,
+  ggtheme = theme_540()
+)
 
-# Plot of 30 individuals with the highest cos2 on PC3 and PC4
-b <- fviz_cos2(new_dim.non,
-               choice = "ind",
-               axes = 3:4,
-               top = 30)
+# Plot of 20 patients with the highest cos2 in PC3 and PC4
+b <- fviz_cos2(
+  new_dim.non,
+  choice = "ind",
+  axes = 3:4,
+  top = 20,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by cos2 values
 c <- fviz_pca_ind(
   new_dim.non,
   col.ind = "cos2",
   gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
-  repel = TRUE
+  repel = TRUE,
+  ggtheme = theme_540()
 )
 ```
 
 ```{r}
 # Contributions of the individuals on dimensions
-head(ind$contrib, 5)
+head(ind$contrib[order(var.non$cor[, 1], decreasing = TRUE),], 5)
 ```
 
 ```{r}
-# Plot of 30 individuals with the highest contribution on PC1 and PC2
-d <- fviz_contrib(new_dim.non,
-                  choice = "ind",
-                  axes = 1:2,
-                  top = 30)
+# Plot of the 20 individuals with the highest contribution in PC1 and PC2
+d <- fviz_contrib(
+  new_dim.non,
+  choice = "ind",
+  axes = 1:2,
+  top = 20,
+  ggtheme = theme_540()
+)
 
-# Plot of 30 individuals with the highest contribution on PC3 and PC4
-e <- fviz_contrib(new_dim.non,
-                  choice = "ind",
-                  axes = 3:4,
-                  top = 30)
+# Plot of the 20 individuals with the highest contribution in PC3 and PC4
+e <- fviz_contrib(
+  new_dim.non,
+  choice = "ind",
+  axes = 3:4,
+  top = 20,
+  ggtheme = theme_540()
+)
 
 # Correlations circle and color by contributions values
 f <- fviz_pca_ind(
   new_dim.non,
   col.ind = "contrib",
-  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26")
+  gradient.cols = c("#fee0d2", "#fc9272", "#de2d26"),
+  ggtheme = theme_540()
 )
 ```
 
 ```{r fig.height=12, fig.width=12, fig.align='center'}
 # Arrange multiple plots
-pca_ind.non <- ggpubr::ggarrange(a, d, b, e, c, f, 
-                                ncol = 2, nrow = 3, 
-                                labels = c("A)", "B)", "C)", "D)", "E)", "F)"), 
-                                legend = "right")
+pca_ind.dm <- ggpubr::ggarrange(
+  a, d, b, e, c, f, ncol = 2, nrow = 3, 
+  legend = "right")
 
-annotate_figure(pca_ind.non,
-                top = text_grob("Patients without T2DM",
-                                face = "bold",
-                                size = 16))
+annotate_figure(
+  pca_ind.dm,
+  top = text_grob(
+    "Patients without T2DM",
+    face = "bold",
+    family = "Lato",
+    size = 16)
+  ) +
+  ggplot2::theme(plot.background = element_rect(fill = "#f0f0f0", color = NA))
 ```
 
 ```{r}
 # Plot of individuals and color by outcome on PC1 and PC2
-ind.graph <- fviz_pca_ind(
+ind_plot.non_1 <- fviz_pca_ind(
   new_dim.non,
   axes = 1:2,
   geom.ind = "point",
   col.ind = old_dim.non$outcome,
-  palette = "igv",
   addEllipses = TRUE,
   mean.point = FALSE,
-  ggtheme = theme_pubr()
+  palette = c("#C03728", "#919C4C"),
+  ggtheme = theme_pomological(base_family = "Homemade Apple")
 )
 
 a <- ggpubr::ggpar(
-  ind.graph,
+  ind_plot.non_1,
   title = element_blank(),
   xlab = "PC1 (22%)",
   ylab = "PC2 (12.3%)",
@@ -2878,37 +3241,41 @@ a <- ggpubr::ggpar(
   )
 
 # Plot of individuals and color by outcome on PC3 and PC4
-ind.graph <- fviz_pca_ind(
+ind_plot.non_2 <- fviz_pca_ind(
   new_dim.non,
   axes = 3:4,
   geom.ind = "point",
   col.ind = old_dim.non$outcome,
-  palette = "igv",
   addEllipses = TRUE,
   mean.point = FALSE,
-  ggtheme = theme_pubr()
-  )
+  palette = c("#C03728", "#919C4C"),
+  ggtheme = theme_pomological(base_family = "Homemade Apple")
+)
 
 b <- ggpubr::ggpar(
-  ind.graph,
+  ind_plot.non_2,
   title = element_blank(),
   xlab = "PC3 (10.8%)",
   ylab = "PC2 (10%)",
   legend.title = "Group",
   legend = "right",
   font.legend = c(12, "black")
-  )
+)
 ```
 
 ```{r fig.height=6, fig.width=14, fig.align='center'}
 # Arrange multiple plots
-ggpubr::ggarrange(
+ind_plot_non <-ggpubr::ggarrange(
   a, b,
   ncol = 2, nrow = 1,
   labels = c("A)", "B)"),
   legend = "bottom",
-  common.legend = TRUE
-)
+  common.legend = TRUE,
+  font.label = list(family = "Homemade Apple")) + 
+  ggplot2::theme(panel.background = element_rect(fill = "#FFFEEA", color = NA))
+
+
+paint_pomological(ind_plot_non, width = 1000, height = 500)
 ```
 
 ### Biplot of individuals and variables of patients with T2DM
@@ -2922,17 +3289,19 @@ a.dm <- fviz_pca_biplot(
   # Individuals
   col.ind = old_dim.dm$outcome,
   geom.ind = "point",
-  col.var = "black",
+  col.var = "#272822",
   # Top 10 contributing variables
   geom.var = "text",
   select.var = list(contrib = 10),
   # Theme
-  palette = "Set1",
+  palette = c("#2A6EBBFF", "#F0AB00FF"),
   addEllipses = TRUE,
   mean.point = FALSE,
   repel = TRUE,
-  ggtheme = theme_pubr()
-  )
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+)
 
 # Plot parameters
 a1.dm <- ggpubr::ggpar(
@@ -2940,12 +3309,94 @@ a1.dm <- ggpubr::ggpar(
   title = element_blank(),
   xlab = "PC1 (22.8%)",
   ylab = "PC2 (12.2%)",
-  legend.title = "Group",
-  font.legend = c(12, "black")
-  )
+  legend.title = "Group ",
+  font.legend = c(30, "#272822")
+)
 
 # Contributions on PC1 and PC3
 b.dm <- fviz_pca_biplot(
+  new_dim.dm,
+  # Dimensions 1 and 3
+  axes = c(1, 3),
+  # Individuals
+  col.ind = old_dim.dm$outcome,
+  geom.ind = "point",
+  col.var = "#272822",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  palette = c("#2A6EBBFF", "#F0AB00FF"),
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+)
+
+# Plot parameters
+b1.dm <- ggpubr::ggpar(
+  b.dm,
+  title = element_blank(),
+  xlab = "PC1 (22.8%)",
+  ylab = "PC3 (11.5%)",
+  legend.title = "Group ",
+  font.legend = c(30, "#272822")
+)
+```
+
+```{r fig.height=10, fig.width=24, fig.align='center'}
+# Arrange multiple plots
+F1_dm <- ggpubr::ggarrange(
+  a1.dm, b1.dm,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
+
+# View
+F1_dm
+```
+
+```{r, echo=FALSE}
+# Contributions on PC1 and PC2
+a.dm_gray <- fviz_pca_biplot(
+  new_dim.dm,
+  # Dimensions 1 and 2
+  axes = 1:2,
+  # Individuals
+  col.ind = old_dim.dm$outcome,
+  geom.ind = "point",
+  col.var = "black",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+) +
+  ggplot2::scale_color_manual(values = c("grey14", "grey59")) +
+  ggplot2::scale_fill_manual(values = c("grey14", "grey59"))
+
+# Plot parameters
+a1.dm_gray <- ggpubr::ggpar(
+  a.dm_gray,
+  title = element_blank(),
+  xlab = "PC1 (22%)",
+  ylab = "PC2 (12.3%)",
+  legend.title = "Group ",
+  font.legend = c(30, "black")
+)
+
+# Contributions on PC1 and PC3
+b.dm_gray <- fviz_pca_biplot(
   new_dim.dm,
   # Dimensions 1 and 3
   axes = c(1, 3),
@@ -2957,36 +3408,37 @@ b.dm <- fviz_pca_biplot(
   geom.var = "text",
   select.var = list(contrib = 10),
   # Theme
-  palette = "Set1",
   addEllipses = TRUE,
   mean.point = FALSE,
   repel = TRUE,
-  ggtheme = theme_pubr()
-  )
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+) +
+  ggplot2::scale_color_manual(values = c("grey14", "grey59")) +
+  ggplot2::scale_fill_manual(values = c("grey14", "grey59"))
 
 # Plot parameters
-b1.dm <- ggpubr::ggpar(
-  b.dm,
+b1.dm_gray <- ggpubr::ggpar(
+  b.dm_gray,
   title = element_blank(),
-  xlab = "PC1 (22.8%)",
-  ylab = "PC3 (11.5%)",
-  legend.title = "Group",
-  font.legend = c(12, "black")
-  )
+  xlab = "PC1 (22%)",
+  ylab = "PC3 (10.8%)",
+  legend.title = "Group ",
+  font.legend = c(30, "black")
+)
 ```
 
-```{r fig.height=6, fig.width=14, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center', echo=FALSE}
 # Arrange multiple plots
-F1_dm <- ggpubr::ggarrange(
-  a1.dm, b1.dm,
+F1.dm_gray <- ggpubr::ggarrange(
+  a1.dm_gray, b1.dm_gray,
   ncol = 2, nrow = 1,
   labels = c("A)", "B)"),
   legend = "bottom",
-  common.legend = TRUE
-)
-
-# View
-F1_dm
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
 ```
 
 ### Biplot of individuals and variables of patients without T2DM
@@ -3000,16 +3452,18 @@ a.non <- fviz_pca_biplot(
   # Individuals
   col.ind = old_dim.non$outcome,
   geom.ind = "point",
-  col.var = "black",
+  col.var = "#272822",
   # Top 10 contributing variables
   geom.var = "text",
   select.var = list(contrib = 10),
   # Theme
-  palette = "Set1",
+  palette = c("#2A6EBBFF", "#F0AB00FF"),
   addEllipses = TRUE,
   mean.point = FALSE,
   repel = TRUE,
-  ggtheme = theme_pubr()
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
 )
 
 # Plot parameters
@@ -3018,12 +3472,94 @@ a1.non <- ggpubr::ggpar(
   title = element_blank(),
   xlab = "PC1 (22%)",
   ylab = "PC2 (12.3%)",
-  legend.title = "Group",
-  font.legend = c(12, "black")
+  legend.title = "Group ",
+  font.legend = c(30, "#272822")
 )
 
 # Contributions on PC1 and PC3
 b.non <- fviz_pca_biplot(
+  new_dim.non,
+  # Dimensions 1 and 3
+  axes = c(1, 3),
+  # Individuals
+  col.ind = old_dim.non$outcome,
+  geom.ind = "point",
+  col.var = "#272822",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  palette = c("#2A6EBBFF", "#F0AB00FF"),
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+)
+
+# Plot parameters
+b1.non <- ggpubr::ggpar(
+  b.non,
+  title = element_blank(),
+  xlab = "PC1 (22%)",
+  ylab = "PC3 (10.8%)",
+  legend.title = "Group ",
+  font.legend = c(30, "#272822")
+)
+```
+
+```{r fig.height=10, fig.width=24, fig.align='center'}
+# Arrange multiple plots
+F1_non <- ggpubr::ggarrange(
+  a1.non, b1.non,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
+
+# View
+F1_non
+```
+
+```{r, echo=FALSE}
+# Contributions on PC1 and PC2
+a.non_gray <- fviz_pca_biplot(
+  new_dim.non,
+  # Dimensions 1 and 2
+  axes = 1:2,
+  # Individuals
+  col.ind = old_dim.non$outcome,
+  geom.ind = "point",
+  col.var = "black",
+  # Top 10 contributing variables
+  geom.var = "text",
+  select.var = list(contrib = 10),
+  # Theme
+  addEllipses = TRUE,
+  mean.point = FALSE,
+  repel = TRUE,
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+) +
+  ggplot2::scale_color_manual(values = c("grey14", "grey59")) +
+  ggplot2::scale_fill_manual(values = c("grey14", "grey59"))
+
+# Plot parameters
+a1.non_gray <- ggpubr::ggpar(
+  a.non_gray,
+  title = element_blank(),
+  xlab = "PC1 (22%)",
+  ylab = "PC2 (12.3%)",
+  legend.title = "Group ",
+  font.legend = c(30, "black")
+)
+
+# Contributions on PC1 and PC3
+b.non_gray <- fviz_pca_biplot(
   new_dim.non,
   # Dimensions 1 and 3
   axes = c(1, 3),
@@ -3035,50 +3571,64 @@ b.non <- fviz_pca_biplot(
   geom.var = "text",
   select.var = list(contrib = 10),
   # Theme
-  palette = "Set1",
   addEllipses = TRUE,
   mean.point = FALSE,
   repel = TRUE,
-  ggtheme = theme_pubr()
-)
+  labelsize = 8,
+  pointsize = 4,
+  ggtheme = theme_541()
+) +
+  ggplot2::scale_color_manual(values = c("grey14", "grey59")) +
+  ggplot2::scale_fill_manual(values = c("grey14", "grey59"))
 
 # Plot parameters
-b1.non <- ggpubr::ggpar(
-  b.non,
+b1.non_gray <- ggpubr::ggpar(
+  b.non_gray,
   title = element_blank(),
   xlab = "PC1 (22%)",
   ylab = "PC3 (10.8%)",
-  legend.title = "Group",
-  font.legend = c(12, "black")
+  legend.title = "Group ",
+  font.legend = c(30, "black")
 )
 ```
 
-```{r fig.height=6, fig.width=14, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center', echo=FALSE}
 # Arrange multiple plots
-F1_non <- ggpubr::ggarrange(
-  a1.non, b1.non,
+F1.non_gray <- ggpubr::ggarrange(
+  a1.non_gray, b1.non_gray,
   ncol = 2, nrow = 1,
   labels = c("A)", "B)"),
   legend = "bottom",
-  common.legend = TRUE
-)
-
-# View
-F1_non
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
 ```
 
-```{r fig.height=6, fig.width=14, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center'}
 # Arrange multiple plots
 F2 <- ggpubr::ggarrange(
   a1.dm, a1.non,
   ncol = 2, nrow = 1,
   labels = c("A)", "B)"),
   legend = "bottom",
-  common.legend = TRUE
-  )
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
 
 # View
 F2
+```
+
+```{r fig.height=10, fig.width=24, fig.align='center'}
+# Arrange multiple plots
+F2_gray <- ggpubr::ggarrange(
+  a1.dm_gray, a1.non_gray,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
 ```
 
 ::: {style="text-align: justify"}
@@ -3097,6 +3647,18 @@ FS2 <- ggpubr::ggarrange(
 
 # View
 FS2
+```
+
+```{r fig.height=6, fig.width=14, fig.align='center', echo=FALSE}
+# Arrange multiple plots
+FS2_gray <- ggpubr::ggarrange(
+  b1.dm_gray, b1.non_gray,
+  ncol = 2, nrow = 1,
+  labels = c("A)", "B)"),
+  legend = "bottom",
+  common.legend = TRUE,
+  font.label = list(family = "Lato", size = 30)) + 
+  ggplot2::theme(plot.background = element_rect(fill = "#FFFFFF", color = NA))
 ```
 
 ::: {style="text-align: justify"}
@@ -3128,16 +3690,17 @@ tSNE_df <- tSNE_fit$Y |>
 tSNE_df <- tSNE_df |>
   inner_join(meta_numerical, by = "ID")
 
-tSNE_df |>
+tSNE_plot.dm <- tSNE_df |>
   ggplot(aes(x = tSNE1,
              y = tSNE2,
              color = outcome)) +
   geom_point() +
-  scale_color_igv() +
   labs(color = "Group") +
-  theme_minimal() +
-  theme(legend.position = "right",
-        axis.line = element_line(color = "black"))
+  scale_color_pomological() +
+  theme_pomological_fancy() +
+  theme(legend.position = "right")
+
+paint_pomological(tSNE_plot.dm, res = 110)
 ```
 
 ### t-SNE of patients without T2DM
@@ -3163,155 +3726,244 @@ tSNE_df <- tSNE_fit$Y |>
 tSNE_df <- tSNE_df |>
   inner_join(meta_numerical, by = "ID")
 
-tSNE_df |>
+tSNE_plot.non <- tSNE_df |>
   ggplot(aes(x = tSNE1,
              y = tSNE2,
              color = outcome)) +
   geom_point() +
-  scale_color_igv() +
   labs(color = "Group") +
-  theme_minimal() +
-  theme(legend.position = "right",
-        axis.line = element_line(color = "black"))
+  scale_color_pomological() +
+  theme_pomological_fancy() +
+  theme(legend.position = "right")
+
+paint_pomological(tSNE_plot.non, res = 110)
 ```
 
 # Save outputs
 
-All distances are in inches
-
-```{r}
-outputs_dir <- "/Academic/COVID-19 proyects/COVID-19_DMII_ICA/COVID-19_ICA_CC/outputs/"
-```
-
-```{r}
-sect_properties <- prop_section(
-  type = "continuous",
-  page_margins = page_mar(bottom = 1, top = 1, right = 1, left = 1))
-```
+::: {style="text-align: justify"}
+Word (`.docx`) and PowerPoint (`*.pptx`) documents can be manipulated with the `officer` package. For example, you can use the `fp_border()` function to define a border style or `prop_section()` to define section properties such as page size, page orientation, borders and margins.
+:::
 
 ## Tables
+
+::: {style="text-align: justify"}
+The `save_as_docx()` function of the `flextable` package can be used in conjunction with the `string` package to set the output directory. This can be achieved by using the following code: `path = stringr::str_glue(output_dir, "table.docx")`, or by using the `here()` function, as demonstrated below.
+:::
 
 ```{r}
 # Save tables
 save_as_docx(
   flex_table_1,
-  path = stringr::str_glue(outputs_dir, "Table_1.docx"),
+  path = here("outputs", "Table_1.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_2,
-  path = stringr::str_glue(outputs_dir, "Table_2.docx"),
+  path = here("outputs", "Table_2.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_3,
-  path = stringr::str_glue(outputs_dir, "Table_3.docx"),
+  path = here("outputs", "Table_3.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_4,
-  path = stringr::str_glue(outputs_dir, "Table_4.docx"),
+  path = here("outputs", "Table_4.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_5,
-  path = stringr::str_glue(outputs_dir, "Table_5.docx"),
+  path = here("outputs", "Table_5.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_s1,
-  path = stringr::str_glue(outputs_dir, "Table_s1.docx"),
+  path = here("outputs", "Table_s1.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_s2,
-  path = stringr::str_glue(outputs_dir, "Table_s2.docx"),
+  path = here("outputs", "Table_s2.docx"),
   align = "center")
 
 save_as_docx(
   flex_table_s3,
-  path = stringr::str_glue(outputs_dir, "Table_s3.docx"),
+  path = here("outputs", "Table_s3.docx"),
   align = "center")
 ```
 
 ## Figures
 
+::: {style="text-align: justify"}
+The `ggsave()` function of the `gpplot2` package can be used in conjunction with the `string` package to set the output directory. This can be achieved by using the following code: `filename = stringr::str_glue(output_dir, "figure_1.png")`, or by using the `here()` function, as demonstrated below. All dimensions are in inches (in).
+:::
+
 ```{r}
-# Save supplementary figure 1 (EPS)
+# Save figure 1 (PNG)
 ggsave(
-  plot = FS1,
-  filename = stringr::str_glue(outputs_dir, "FIG_S1.eps"),
-  width = 12,
-  height = 12,
+  plot = F2,
+  filename = here("outputs", "FIG_1.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
   units = "in")
 
+# Save figure 1 (JPEG)
+ggsave(
+  plot = F2,
+  filename = here("outputs", "FIG_1.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save figure 1 grey (PNG)
+ggsave(
+  plot = F2_gray,
+  filename = here("outputs", "FIG_1_gray.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save figure 1 grey (JPEG)
+ggsave(
+  plot = F2_gray,
+  filename = here("outputs", "FIG_1_gray.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+```
+
+## Supplementary figure
+
+```{r}
 # Save supplementary figure 1 (PNG)
 ggsave(
   plot = FS1,
-  filename = stringr::str_glue(outputs_dir, "FIG_S1.png"),
-  width = 12,
-  height = 12,
-  dpi = 300,
+  filename = here("outputs", "FIG_S1.png"),
+  width = 9,
+  height = 9,
+  dpi = 500,
   units = "in")
 
 # Save supplementary figure 1 (JPEG)
 ggsave(
   plot = FS1,
-  filename = stringr::str_glue(outputs_dir, "FIG_S1.jpeg"),
-  width = 12,
-  height = 12,
+  filename = here("outputs", "FIG_S1.jpeg"),
+  width = 9,
+  height = 9,
   dpi = 500,
   units = "in")
 
-# Save supplementary figure 2 (EPS)
+# Save supplementary figure 1 gray (PNG)
 ggsave(
-  plot = F1_dm,
-  filename = stringr::str_glue(outputs_dir, "FIG_S2.eps"),
-  width = 14,
-  height = 6,
-  units = "in")
-
-# Save supplementary figure 2 (PNG)
-ggsave(
-  plot = F1_dm,
-  filename = stringr::str_glue(outputs_dir, "FIG_S2.png"),
-  width = 14,
-  height = 6,
+  plot = FS1_grey,
+  filename = here("outputs", "FIG_S1_gray.png"),
+  width = 9,
+  height = 9,
   dpi = 500,
   units = "in")
 
-# Save supplementary figure 2 (JPEG)
+# Save supplementary figure 1 gray (JPEG)
 ggsave(
-  plot = F1_dm,
-  filename = stringr::str_glue(outputs_dir, "FIG_S2.jpeg"),
-  width = 14,
-  height = 6,
+  plot = FS1_grey,
+  filename = here("outputs", "FIG_S1_gray.jpeg"),
+  width = 9,
+  height = 9,
   dpi = 500,
   units = "in")
 
-# Save supplementary figure 3 (EPS)
+# Save supplementary figure 2 grey (PNG)
 ggsave(
-  plot = F1_non,
-  filename = stringr::str_glue(outputs_dir, "FIG_S3.eps"),
-  width = 14,
-  height = 6,
+  plot = FS2_gray,
+  filename = here("outputs", "FIG_S2_gray.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 2 grey (JPEG)
+ggsave(
+  plot = FS2_gray,
+  filename = here("outputs", "FIG_S2_gray.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
   units = "in")
 
 # Save supplementary figure 3 (PNG)
 ggsave(
-  plot = F1_non,
-  filename = stringr::str_glue(outputs_dir, "FIG_S3.png"),
-  width = 14,
-  height = 6,
-  dpi = 500,
+  plot = F1_dm,
+  filename = here("outputs", "FIG_S2.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
   units = "in")
 
 # Save supplementary figure 3 (JPEG)
 ggsave(
+  plot = F1_dm,
+  filename = here("outputs", "FIG_S2.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 3 grey (PNG)
+ggsave(
+  plot = F1.dm_gray,
+  filename = here("outputs", "FIG_S3_gray.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 3 grey (JPEG)
+ggsave(
+  plot = F1.dm_gray,
+  filename = here("outputs", "FIG_S3_gray.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 4 gray (PNG)
+ggsave(
   plot = F1_non,
-  filename = stringr::str_glue(outputs_dir, "FIG_S3.jpeg"),
-  width = 14,
-  height = 6,
-  dpi = 500,
+  filename = here("outputs", "FIG_S4.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 4 gray (JPEG)
+ggsave(
+  plot = F1_non,
+  filename = here("outputs", "FIG_S4.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 4 gray (PNG)
+ggsave(
+  plot = F1.non_gray,
+  filename = here("outputs", "FIG_S4_gray.png"),
+  width = 24,
+  height = 10,
+  dpi = 300,
+  units = "in")
+
+# Save supplementary figure 4 gray (JPEG)
+ggsave(
+  plot = F1.non_gray,
+  filename = here("outputs", "FIG_S4_gray.jpeg"),
+  width = 24,
+  height = 10,
+  dpi = 300,
   units = "in")
 ```
