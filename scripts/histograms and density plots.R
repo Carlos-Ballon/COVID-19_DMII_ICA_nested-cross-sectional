@@ -20,7 +20,7 @@ total_plots <- function(.data) {
     
     # Histogram and density plot for each variable
     plot <- ggplot(data = .data, aes_string(x = var)) +
-      geom_histogram(
+      ggplot2::geom_histogram(
         aes(y = after_stat(density)),
         bins = 10,
         alpha = 0.8,
@@ -28,58 +28,55 @@ total_plots <- function(.data) {
         color = "white",
         na.rm = TRUE
       ) +
-      geom_density(
+      ggplot2::geom_density(
         fill = "#0073C2FF",
         col = "#00B5E2FF",
         alpha = 0.3,
         linewidth = 1,
         na.rm = TRUE
       ) +
-      geom_vline(
+      ggplot2::geom_vline(
         aes(xintercept = mean(.data[[var]], na.rm = TRUE)),
         color = "#D51317FF",
         linetype = "dashed",
         linewidth = 1
       ) +
-      geom_vline(
+      ggplot2::geom_vline(
         aes(xintercept = median(.data[[var]], na.rm = TRUE)),
         color = "#95C11FFF",
         linetype = "dashed",
         linewidth = 1
       ) +
-      ggtitle(paste("Histogram and Density Plot of\n", var)) +
-      labs(x = element_blank()) +
-      ylab("Density") +
-      theme_minimal() +
-      scale_y_continuous(expand = c(0.1, 0)) +
-      theme(
-        axis.line = element_line(color = "black"),
-        axis.text = element_text(color = "black"),
-        axis.title = element_text(color = "black"),
-        strip.text = element_text(color = "black")
-      )
+      ggplot2::ggtitle(paste("Histogram and Density Plot of", var)) +
+      ggplot2::labs(x = element_blank(), y = "Density") +
+      ggplot2::scale_y_continuous(expand = c(0.1, 0)) +
+      theme_537() 
     
     # Add the p-value and summary statistics for each variable to the plot
     plot <- plot +
-      annotate(
+      ggplot2::annotate(
         "text",
         x = Inf,
         y = 0,
         hjust = 1,
         vjust = 1.2,
         label = paste("Shapiro-Wilk test p-value =", p_value),
-        size = 3.3
+        size = 3.3,
+        color = "#272822",
+        family = "Lato"
       ) +
-      annotate(
+      ggplot2::annotate(
         "text",
         x = Inf,
         y = Inf,
         hjust = 1,
         vjust = 1,
         label = paste("First Quartile =", round(q1_value, 2)),
-        size = 3.3
+        size = 3.3,
+        color = "#272822",
+        family = "Syne"
       ) +
-      annotate(
+      ggplot2::annotate(
         "text",
         x = Inf,
         y = Inf,
@@ -87,9 +84,10 @@ total_plots <- function(.data) {
         vjust = 2.5,
         label = paste("Mean =", round(mean_value, 2)),
         size = 3.3,
-        color = "#D51317FF"
+        color = "#D51317FF",
+        family = "Syne"
       ) +
-      annotate(
+      ggplot2::annotate(
         "text",
         x = Inf,
         y = Inf,
@@ -97,16 +95,19 @@ total_plots <- function(.data) {
         vjust = 4,
         label = paste("Median =", round(median_value, 2)),
         size = 3.3,
-        color = "#95C11F"
+        color = "#95C11F",
+        family = "Syne"
       ) +
-      annotate(
+      ggplot2::annotate(
         "text",
         x = Inf,
         y = Inf,
         hjust = 1,
         vjust = 5.5,
         label = paste("Third Quartile =", round(q3_value, 2)),
-        size = 3.3
+        size = 3.3,
+        color = "#272822",
+        family = "Syne"
       )
     return(plot)
   })

@@ -303,124 +303,123 @@ dictionary <- function(data) {
         fct_relevel("No", "Yes") |>
         ff_label("Septic shock"),
       
-      p_a_sistolica = ff_label(p_a_sistolica, "SBP (mmHg)"),
+      SBP = ff_label(SBP, "SBP (mmHg)"),
       ###
       
-      p_a_sistolica.c = case_when(p_a_sistolica < 140 ~ "< 140",
+      SBP.c = case_when(SBP < 140 ~ "< 140",
                                   TRUE ~ ">= 140") |>
         fct_relevel("< 140", ">= 140") |>
         ff_label("SBP (mmHg)"),
       
-      p_a_diastolica = ff_label(p_a_diastolica, "DBP (mmHg)"),
+      DBP = ff_label(DBP, "DBP (mmHg)"),
       ###
       
-      p_a_diastolica.c = case_when(p_a_diastolica < 90 ~ "< 90",
+      DBP.c = case_when(DBP < 90 ~ "< 90",
                                    TRUE ~ ">= 90") |>
         fct_relevel("< 90", ">= 90") |>
         ff_label("DBP (mmHg)"),
       
-      wbc = ff_label(wbc, "WBC (×10^−9^/L)"),
+      WBC = ff_label(WBC, "WBC (×10^9^/L)"),
       ###
       
-      wbc.c = case_when(wbc < 4 ~ "< 4",
-                        wbc >= 4 & wbc <= 10 ~ "4-10",
-                        wbc > 10 ~ "> 10") |>
+      WBC.c = case_when(WBC < 4 ~ "< 4",
+                        WBC >= 4 & WBC <= 10 ~ "4-10",
+                        WBC > 10 ~ "> 10") |>
         fct_relevel("4-10", "< 4", "> 10") |>
-        ff_label("WBC (×10^−9^/L)"),
+        ff_label("WBC (×10^9^/L)"),
       
-      linfocitos = ff_label(linfocitos, "Lymphocytes (×10^−9^/L)"),
+      linfocitos = ff_label(linfocitos, "Lymphocytes (×10^9^/L)"),
       ###
       
       linfocitos.c = case_when(linfocitos < 1 ~ "< 1",
                                TRUE ~ ">= 1") |>
         fct_relevel(">= 1", "< 1") |>
-        ff_label("Lymphocytes (×10^−9^/L)"),
+        ff_label("Lymphocytes (×10^9^/L)"),
       
-      neutrofilos = ff_label(neutrofilos, "Neutrophils (×10^−9^/L)"),
+      neutrofilos = ff_label(neutrofilos, "Neutrophils (×10^9^/L)"),
       ###
       
       neutrofilos.c = case_when(neutrofilos > 6.3 ~ "> 6.3",
                                 TRUE ~ "<= 6.3") |>
         fct_relevel("<= 6.3", "> 6.3") |>
-        ff_label("Neutrophils (×10^−9^/L)"),
+        ff_label("Neutrophils (×10^9^/L)"),
       
-      nlr = neutrofilos / linfocitos,
-      nlr = ff_label(nlr, "NLR"),
+      NLR = neutrofilos / linfocitos,
+      NLR = ff_label(NLR, "NLR"),
       ###
       
-      nlr.c = case_when(nlr < 5.86 ~ "< 5.86",
-                        nlr >= 5.86 ~ ">= 5.86") |>
+      NLR.c = case_when(NLR < 5.86 ~ "< 5.86",
+                        NLR >= 5.86 ~ ">= 5.86") |>
         fct_relevel("< 5.86", ">= 5.86") |>
         ff_label("NLR"),
       
-      platelets = ff_label(platelets, "Platelets (×10^−9^/L)"),
+      platelets = ff_label(platelets, "Platelets (×10^9^/L)"),
       ###
       
       platelets.c = case_when(platelets < 125 ~ "< 125",
                               TRUE ~ ">= 125") |>
         fct_relevel(">= 125", "< 125") |>
-        ff_label("Platelets (×10^−9^/L)"),
+        ff_label("Platelets (×10^9^/L)"),
       
-      frecuencia_cardiaca = ff_label(frecuencia_cardiaca, "Heart rate (BPM)"),
+      frec_cardiaca = ff_label(frec_cardiaca, "Heart rate (BPM)"),
       ##
       
-      frecuencia_cardiaca.c = case_when(frecuencia_cardiaca < 100 ~ "< 100",
+      frec_cardiaca.c = case_when(frec_cardiaca < 100 ~ "< 100",
                                         TRUE ~ ">= 100") |>
         fct_relevel("< 100", ">= 100") |>
         ff_label("Heart rate (BPM)"),
       
-      frecuencia_respiratoria = ff_label(frecuencia_respiratoria,
+      frec_respiratoria = ff_label(frec_respiratoria,
                                          "Respiratory rate (BPM)"),
       ##
       
-      frecuencia_respiratoria.c =
+      frec_respiratoria.c =
         case_when(
-          frecuencia_respiratoria < 24 ~ "< 24",
-          frecuencia_respiratoria >= 24 &
-            frecuencia_respiratoria <= 30 ~ "24 - 30",
-          frecuencia_respiratoria > 30 ~ "> 30"
+          frec_respiratoria < 24 ~ "< 24",
+          frec_respiratoria >= 24 & frec_respiratoria <= 30 ~ "24 - 30",
+          frec_respiratoria > 30 ~ "> 30"
         ) |> ##
         fct_relevel("24 - 30", "< 24", "> 30") |>
         ff_label("Respiratory rate (BPM)"),
       
-      saturacion_de_oxigeno = ff_label(saturacion_de_oxigeno, "SaO~2~ (%)"),
+      SaO2 = ff_label(SaO2, "SaO~2~ (%)"),
       ###
       
-      saturacion_de_oxigeno.c = case_when(saturacion_de_oxigeno < 90 ~ "< 90",
+      SaO2.c = case_when(SaO2 < 90 ~ "< 90",
                                           TRUE ~ ">= 90") |>
         fct_relevel(">= 90", "< 90") |>
         ff_label("SaO~2~"),
       
-      fio2 = ff_label(fio2, "FiO~2~ (%)"),
+      FiO2 = ff_label(FiO2, "FiO~2~ (%)"),
       ###
       
-      fio2.c = case_when(fio2 > 21 ~ "> 21 (O~2~ therapy)",
+      FiO2.c = case_when(FiO2 > 21 ~ "> 21 (O~2~ therapy)",
                          TRUE ~ "21") |>
         fct_relevel("> 21 (O~2~ therapy)", "21") |>
         ff_label("FiO~2~ (%)"),
       
-      pao2 = round(as.numeric(pao2), 2),
-      pao2 = ff_label(pao2, "PaO2 (mmHg)"),
+      PaO2 = round(as.numeric(PaO2), 2),
+      PaO2 = ff_label(PaO2, "PaO2 (mmHg)"),
       ##
       
-      pao2.c = case_when(pao2 < 60 ~ "< 60",
+      PaO2.c = case_when(PaO2 < 60 ~ "< 60",
                          TRUE ~ ">= 60") |>
         fct_relevel(">= 60", "< 60") |>
         ff_label("PaO~2~"),
       
-      pafi_cal = round(pao2 / fio2, 2),
-      pafi_cal = ff_label(pafi_cal, "PaO~2~:FiO~2~ ratio"),
+      pafi_cal = round(PaO2 / FiO2, 2),
+      pafi_cal = ff_label(pafi_cal, "Calculated PaO~2~:FiO~2~ ratio"),
       ###
       
       pafi_cal.c = case_when(pafi_cal <= 200 ~ "<= 200",
                              TRUE ~ "> 200") |>
         fct_relevel("> 200", "<= 200") |>
-        ff_label("PaO~2~:FiO~2~ ratio"),
+        ff_label("Calculated PaO~2~:FiO~2~ ratio"),
       
-      pafi = ff_label(pafi, "Calculated PaO~2~:FiO~2~ ratio"),
+      PaO2_FiO2 = ff_label(PaO2_FiO2, "PaO~2~:FiO~2~ ratio"),
       ###
       
-      pafi.c = case_when(pafi <= 200 ~ "<= 200",
+      PaO2_FiO2.c = case_when(PaO2_FiO2 <= 200 ~ "<= 200",
                          TRUE ~ "> 200") |>
         fct_relevel("> 200", "<= 200") |>
         ff_label("PaO~2~:FiO~2~ ratio"),

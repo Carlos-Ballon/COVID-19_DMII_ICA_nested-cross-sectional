@@ -11,10 +11,10 @@ my_ggcorrplor <- function(data) {
     lab_size = 4,
     tl.col = "black",
     tl.srt = 45,
-    tl.cex = 10,
+    tl.cex = 11,
     digits = 1
   ) +
-    theme(text = element_text(color = "black"),
+    theme(text = element_text(color = "black", size = 11, family = "Syne"), 
           axis.text = element_text(color = "black")) +
     labs(x = element_blank(), y = element_blank())
 }
@@ -33,10 +33,10 @@ my_ggcorrplor_grey <- function(data) {
     lab_size = 4,
     tl.col = "black",
     tl.srt = 45,
-    tl.cex = 10,
+    tl.cex = 11,
     digits = 1
   ) +
-    theme(text = element_text(color = "black"),
+    theme(text = element_text(color = "black", size = 11, family = "Syne"),
           axis.text = element_text(color = "black")) +
     labs(x = element_blank(), y = element_blank())
 }

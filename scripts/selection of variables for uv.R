@@ -15,21 +15,21 @@ var_selec_uv <- function(data, valor_filtro) {
       disnea,
       
       # Vital signs
-      frecuencia_cardiaca.c,
-      frecuencia_respiratoria.c,
-      p_a_sistolica.c,
-      p_a_diastolica.c,
+      frec_cardiaca.c,
+      frec_respiratoria.c,
+      SBP.c,
+      DBP.c,
       
       # Laboratory findings
-      wbc.c,
+      WBC.c,
       neutrofilos.c,
       linfocitos.c,
-      nlr.c,
+      NLR.c,
       platelets.c,
-      saturacion_de_oxigeno.c,
-      fio2.c,
-      pafi.c,
-      pao2.c,
+      SaO2.c,
+      FiO2.c,
+      PaO2_FiO2.c,
+      PaO2.c,
       
       # Treatment
       corticoides,

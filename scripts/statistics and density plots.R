@@ -40,10 +40,26 @@ group_stat_table_plot <- function(data_used, var, outcome) {
     ) |>
     
     # Draw a textual table
-    ggpubr::ggtexttable(theme = ttheme("blank"), rows = NULL)
+    ggpubr::ggtexttable(
+      rows = NULL,
+      theme = ttheme(
+        base_style = "blank",
+        base_size = 11,
+        colnames.style = colnames_style(
+          color = "#272822",
+          fill = "#f0f0f0",
+          linecolor = "#d0d0d0"
+        ),
+        tbody.style = tbody_style(
+          color = "#272822",
+          fill = "#f0f0f0",
+          linecolor = "#d0d0d0"
+        )
+      )
+    )
   
   foot_note <- paste0(
-    "*IQR = Rango intercuartílico; ",
+    "*IQR = Interquartile range; ",
     "Levene's test p-value = ",
     round(levene_p_value, 3),
     "; ",
@@ -65,47 +81,61 @@ group_stat_table_plot <- function(data_used, var, outcome) {
       row.side = "bottom",
       linetype = 1
     ) |>
+    ggpubr::table_cell_font(
+      row = 2:tab_nrow(stat_table),
+      column = 2,
+      color = "#272822"
+    ) |>
     ggpubr::table_cell_bg(
       row = 2:tab_nrow(stat_table),
       column = 2,
-      fill = "#CE3D32FF",
-      color = "white",
-      alpha = 0.3
+      fill = "#69BE28FF",
+      color = "#d0d0d0",
+      alpha = 0.5
+    ) |>
+    ggpubr::table_cell_font(
+      row = 2:tab_nrow(stat_table),
+      column = 4,
+      color = "#272822"
     ) |>
     ggpubr::table_cell_bg(
       row = 2:tab_nrow(stat_table),
       column = 4,
-      fill = "#99CC00FF",
-      color = "white",
-      alpha = 0.3
+      fill = "#7D5CC6FF",
+      color = "#d0d0d0",
+      alpha = 0.5
+    ) |>
+    ggpubr::table_cell_font(
+      row = 2,
+      column = 1,
+      color = "#FFFFFF"
     ) |>
     ggpubr::table_cell_bg(
       row = 2,
       column = 1,
-      fill = "#5773CCFF",
-      color = "white",
-      alpha = 0.3
+      fill = "#2A6EBBFF",
+      color = "#d0d0d0",
+      alpha = 0.5
     ) |>
     ggpubr::table_cell_bg(
       row = 3,
       column = 1,
-      fill = "#FFB900FF",
-      color = "white",
-      alpha = 0.3
-    ) |>
+      fill = "#F0AB00FF",
+      color = "#d0d0d0",
+      alpha = 0.5
+    ) |> 
     ggpubr::tab_add_title(
       text = "Summary statistics and normality tests",
-      hjust = -0.88,
       padding = unit(1.5, "line"),
-      size = 11,
-      face = "italic"
+      size = 14,
+      family = "Syne",
+      hjust = -0.69
     ) |>
     ggpubr::tab_add_footnote(
       text = foot_note,
       padding = unit(0.5, "line"),
-      size = 10,
-      face = "italic",
-      hjust = 0.97
+      size = 10.5,
+      family = "Syne"
     )
   
   # Density plot by groups
@@ -123,21 +153,11 @@ group_stat_table_plot <- function(data_used, var, outcome) {
       color = "Group",
       title = paste("Density Plot of", var)
     ) +
-    ggplot2::theme_minimal() +
-    ggsci::scale_fill_igv(palette = "alternating", alpha = 0.3) +
-    ggsci::scale_color_igv(palette = "alternating", alpha = 0.6) +
-    ggplot2::scale_y_continuous(expand = c(0.1, 0)) +
-    ggplot2::scale_x_continuous(breaks = seq(0, 1000, by = 10)) +
+    theme_538() +
+    ggsci::scale_color_bmj(alpha = 1) +
+    ggsci::scale_fill_bmj(alpha = 1) +
     ggplot2::guides(fill = "none") +
-    ggplot2::theme(
-      axis.line = element_line(color = "black"),
-      axis.text = element_text(color = "black"),
-      axis.title = element_text(color = "black", size = 11),
-      strip.text = element_text(color = "black"),
-      legend.title = element_text(color = "black", size = 11),
-      legend.text = element_text(color = "black", size = 11),
-      legend.position = "none"
-    )
+    ggplot2::theme(legend.position = "none")
   
   ggpubr::ggarrange(plot,
                     custom_stat_table,
@@ -148,7 +168,13 @@ group_stat_table_plot <- function(data_used, var, outcome) {
 # Use "var" and "outcome" to perform calculations and create the table
 # group_stat_table_plot(data, "edad", "a_f")
 
-
+# xaringanthemer::theme_xaringan_base(
+#   text_color = "#272822",
+#   background_color = "#f0f0f0",
+#   text_font_size = 17,
+#   title_font_size = 25,
+#   set_ggplot_defaults = TRUE
+# )
 
 
 
