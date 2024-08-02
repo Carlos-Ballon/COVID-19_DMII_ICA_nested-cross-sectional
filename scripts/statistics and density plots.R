@@ -115,7 +115,7 @@ group_stat_table_plot <- function(data_used, var, outcome) {
       column = 1,
       fill = "#2A6EBBFF",
       color = "#d0d0d0",
-      alpha = 0.5
+      alpha = 0.7
     ) |>
     ggpubr::table_cell_bg(
       row = 3,
@@ -154,8 +154,8 @@ group_stat_table_plot <- function(data_used, var, outcome) {
       title = paste("Density Plot of", var)
     ) +
     theme_538() +
-    ggsci::scale_color_bmj(alpha = 1) +
-    ggsci::scale_fill_bmj(alpha = 1) +
+    ggsci::scale_color_bmj(alpha = 0.8) +
+    ggsci::scale_fill_bmj(alpha = 0.2) +
     ggplot2::guides(fill = "none") +
     ggplot2::theme(legend.position = "none")
   
@@ -167,14 +167,6 @@ group_stat_table_plot <- function(data_used, var, outcome) {
 
 # Use "var" and "outcome" to perform calculations and create the table
 # group_stat_table_plot(data, "edad", "a_f")
-
-# xaringanthemer::theme_xaringan_base(
-#   text_color = "#272822",
-#   background_color = "#f0f0f0",
-#   text_font_size = 17,
-#   title_font_size = 25,
-#   set_ggplot_defaults = TRUE
-# )
 
 
 
