@@ -30,7 +30,7 @@ A clear plan for a data analysis and visualization project must optimize resourc
 # Set global knitr options
 
 ```{r}
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, dpi = 300)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
 # Load packages
@@ -68,7 +68,8 @@ pacman::p_load(
   corrplot,
   grateful,
   patchwork,
-  officer
+  officer,
+  magick
   )
 
 # For PostScript output
@@ -78,7 +79,7 @@ pacman::p_load(
 rfextras::load_scripts()
 ```
 
-```{r eval=FALSE}
+```{r results='hide'}
 grateful::cite_packages(
   output = "file",
   out.format = "docx",
@@ -182,7 +183,7 @@ categorical <- data_match_eda |>
   dplyr::select(where(is.factor), -matched_id)
 ```
 
-```{r echo=TRUE, include=FALSE}
+```{r eval=FALSE}
 # Multiple tables (relative frequencies) with lapply
 lapply(categorical, function(x)
   round(prop.table(table(x)) * 100, 1))
@@ -245,21 +246,21 @@ gas_numerical <- numerical |>
 
 #### Part 1 {.active}
 
-```{r fig.height=10, fig.width=11.5, fig.align='center'}
+```{r fig.height=11, fig.width=11.5, fig.align='center'}
 # Formal and visual exploration
 total_plots(dem_numerical)
 ```
 
 #### Part 2
 
-```{r fig.height=7, fig.width=10, fig.align='center'}
+```{r fig.height=8, fig.width=10, fig.align='center'}
 # Formal and visual exploration
 total_plots(hemo_numerical)
 ```
 
 #### Part 3
 
-```{r fig.height=7, fig.width=10, fig.align='center'}
+```{r fig.height=8, fig.width=10, fig.align='center'}
 # Formal and visual exploration
 total_plots(gas_numerical)
 ```
@@ -1445,7 +1446,7 @@ performance::model_performance(m3_non)
 performance::check_collinearity(m3_non, ci = NULL)
 ```
 
-```{r include=FALSE}
+```{r}
 # Model summary with LRT
 epiDisplay::logistic.display(m3_non, simplified = FALSE, crude = FALSE)
 ```
@@ -1702,7 +1703,7 @@ table_sens_uv_dm <- data_sens_dm |>
 
 #### Multivariable regression analysis
 
-```{r include=FALSE}
+```{r}
 # Original model (final) of T2DM patients
 final_model_dm <-
   glm(
@@ -1722,12 +1723,12 @@ sens_model_dm <-
   )
 ```
 
-```{r include=FALSE}
+```{r}
 # Comparison of the regression coefficients and their standard errors
 car::compareCoefs(final_model_dm, sens_model_dm, pvals = TRUE)
 ```
 
-```{r include=FALSE}
+```{r}
 # Impact on the overall multiple degrees of freedom significance test
 car::Anova(final_model_dm, type = 3, test.statistic = "LR")
 car::Anova(sens_model_dm, type = 3, test.statistic = "LR")
@@ -1823,12 +1824,12 @@ sens_model_non <-
   )
 ```
 
-```{r include=FALSE}
+```{r}
 # Comparison of the regression coefficients and their standard errors
 car::compareCoefs(final_model_non, sens_model_non, pvals = TRUE)
 ```
 
-```{r include=FALSE}
+```{r}
 # Impact on the overall multiple degrees of freedom significance test
 car::Anova(final_model_non, type = 3, test.statistic = "LR")
 car::Anova(sens_model_non, type = 3, test.statistic = "LR")
@@ -2400,7 +2401,7 @@ flex_table_s3
 ```
 
 ::: {style="text-align: justify"}
-We performed a sensitivity analysis to categorization of continuous data and our results were similar to those shown in the main analyses, except for dyspnea which became an independent predictor in T2DM patients, and the neutrophil did so for non-T2DM patients (Table S2). In addition, we performed a sensitivity analysis to outliers and influential observations and we identified 21 outliers and influential observations in T2DM patients and eight in non-T2DM patients. In patients with T2DM, all variables became independent predictors with the exception of PaO~2~:FiO~2~ ratio and dyspnea, the latter was not analyzed due to its overestimation. In patients without T2DM, all variables became independent predictors with the exception of hypertension (Table S3). While we still should focus on effect sizes rather than p-values, some of these changes are notably large.
+Regarding the sensitivity analysis, on one hand, the sensitivity to the categorization of continuous data showed results similar to those in the main analysis, except for dyspnea and neutrophil count. Dyspnea reached statistical significance in multivariable regression analysis in patients with T2DM, and the neutrophil count in patients without T2DM (Supplementary Table 2). On the other hand, the sensitivity analysis to outliers and influential observations also showed similar results. Specifically, hypertension and heart rate reached statistical significance in multivariable regression analysis in patients with T2DM, while dyspnea and neutrophil count reached statistical significance in patients without T2DM. All other variables kept the same (Supplementary Table 2). While we still should focus on effect sizes rather than p-values, some of these changes are notably large.
 :::
 
 # Concordance statistic
@@ -3074,8 +3075,10 @@ ind_plot.dm_1 <- fviz_pca_ind(
   col.ind = old_dim.dm$outcome,
   addEllipses = TRUE,
   mean.point = FALSE,
+  labelsize = 8,
+  pointsize = 4,
   palette = c("#C03728", "#919C4C"),
-  ggtheme = theme_pomological(base_family = "Homemade Apple")
+  ggtheme = theme_pomological(base_family = "Homemade Apple", base_size = 30)
 )
 
 a <- ggpubr::ggpar(
@@ -3085,7 +3088,7 @@ a <- ggpubr::ggpar(
   ylab = "PC2 (12.2%)",
   legend.title = "Group",
   legend = "right",
-  font.legend = c(12, "black")
+  font.legend = c(30, "black")
   )
 
 # Plot of individuals and color by outcome on PC3 and PC4
@@ -3096,8 +3099,10 @@ ind_plot.dm_2 <- fviz_pca_ind(
   col.ind = old_dim.dm$outcome,
   addEllipses = TRUE,
   mean.point = FALSE,
+  labelsize = 8,
+  pointsize = 4,
   palette = c("#C03728", "#919C4C"),
-  ggtheme = theme_pomological(base_family = "Homemade Apple")
+  ggtheme = theme_pomological(base_family = "Homemade Apple", base_size = 30)
   )
 
 b <- ggpubr::ggpar(
@@ -3107,11 +3112,11 @@ b <- ggpubr::ggpar(
   ylab = "PC2 (9.9%)",
   legend.title = "Group",
   legend = "right",
-  font.legend = c(12, "black")
+  font.legend = c(30, "black")
   )
 ```
 
-```{r fig.height=6, fig.width=14, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center'}
 # Arrange multiple plots
 ind_plot_dm <- ggpubr::ggarrange(
   a, b,
@@ -3119,10 +3124,11 @@ ind_plot_dm <- ggpubr::ggarrange(
   labels = c("A)", "B)"),
   legend = "bottom",
   common.legend = TRUE,
-  font.label = list(family = "Homemade Apple")) + 
+  font.label = list(family = "Homemade Apple", size = 30)) + 
   ggplot2::theme(panel.background = element_rect(fill = "#FFFEEA", color = NA))
 
-paint_pomological(ind_plot_dm, width = 1000, height = 500)
+# View
+ind_plot_dm
 ```
 
 ### Individuals without T2M
@@ -3226,8 +3232,10 @@ ind_plot.non_1 <- fviz_pca_ind(
   col.ind = old_dim.non$outcome,
   addEllipses = TRUE,
   mean.point = FALSE,
+  labelsize = 8,
+  pointsize = 4,
   palette = c("#C03728", "#919C4C"),
-  ggtheme = theme_pomological(base_family = "Homemade Apple")
+  ggtheme = theme_pomological(base_family = "Homemade Apple", base_size = 30)
 )
 
 a <- ggpubr::ggpar(
@@ -3237,7 +3245,7 @@ a <- ggpubr::ggpar(
   ylab = "PC2 (12.3%)",
   legend.title = "Group",
   legend = "right",
-  font.legend = c(12, "black")
+  font.legend = c(30, "#272822")
   )
 
 # Plot of individuals and color by outcome on PC3 and PC4
@@ -3248,8 +3256,10 @@ ind_plot.non_2 <- fviz_pca_ind(
   col.ind = old_dim.non$outcome,
   addEllipses = TRUE,
   mean.point = FALSE,
+  labelsize = 8,
+  pointsize = 4,
   palette = c("#C03728", "#919C4C"),
-  ggtheme = theme_pomological(base_family = "Homemade Apple")
+  ggtheme = theme_pomological(base_family = "Homemade Apple", base_size = 30)
 )
 
 b <- ggpubr::ggpar(
@@ -3259,11 +3269,11 @@ b <- ggpubr::ggpar(
   ylab = "PC2 (10%)",
   legend.title = "Group",
   legend = "right",
-  font.legend = c(12, "black")
+  font.legend = c(30, "#272822")
 )
 ```
 
-```{r fig.height=6, fig.width=14, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center'}
 # Arrange multiple plots
 ind_plot_non <-ggpubr::ggarrange(
   a, b,
@@ -3271,11 +3281,11 @@ ind_plot_non <-ggpubr::ggarrange(
   labels = c("A)", "B)"),
   legend = "bottom",
   common.legend = TRUE,
-  font.label = list(family = "Homemade Apple")) + 
+  font.label = list(family = "Homemade Apple", size = 30)) + 
   ggplot2::theme(panel.background = element_rect(fill = "#FFFEEA", color = NA))
 
-
-paint_pomological(ind_plot_non, width = 1000, height = 500)
+# View
+ind_plot_non
 ```
 
 ### Biplot of individuals and variables of patients with T2DM
@@ -3619,7 +3629,7 @@ F2 <- ggpubr::ggarrange(
 F2
 ```
 
-```{r fig.height=10, fig.width=24, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center', echo=TRUE}
 # Arrange multiple plots
 F2_gray <- ggpubr::ggarrange(
   a1.dm_gray, a1.non_gray,
@@ -3632,10 +3642,10 @@ F2_gray <- ggpubr::ggarrange(
 ```
 
 ::: {style="text-align: justify"}
-Among COVID-19 patients with T2DM, PCA showed that neutrophils, NLR, WBC, and PaO2:FiO2 ratio were that the variables with higher contributions for PC1 (22.8%), while DBP, SBP and SaO2 were that the variables with higher contributions for PC2 (12.2%) but PaO2:FiO2 ratio and SaO2 were important in survivor group (Figure 2A). Also, the biplot of PC1 and PC3 showed similar results including respiratory and hear rates (Figure S2A). Among COVID-19 patients without T2DM, neutrophils, WBC, NLR, PaO2:FiO2 ratio, and SaO2 were that the variables with higher contributions for PC1 (22%),while DBP, SBP, PaO2:FiO2 ratio, PaO2 and NLR were that the variables with higher contributions for PC2 (12.3%) but PaO2:FiO2 ratio, SaO2 abd PaO2 were important in survivor group (Figure 2B). Also, the biplot of PC1 and PC3 showed similar results including age (Figure S2B). However, based on the results of bivariate analysis and PCA, the T2DM group showed that SBP, DBP, respiratory rate and platelets was not showed difference significantly by outcome groups, and only SBP, DBP, and platelets was not showed difference significantly by outcome groups in patients without T2DM.
+Among COVID-19 patients with T2DM, PCA showed that neutrophils, NLR, WBC, and PaO2:FiO2 ratio were that the variables with higher contributions for PC1 (22.8%), while DBP, SBP and SaO2 were that the variables with higher contributions for PC2 (12.2%) but PaO2:FiO2 ratio and SaO2 were important in survivor group (Figure 2A). Also, the biplot of PC1 and PC3 showed similar results including respiratory and hear rates (Figure S2A). Among COVID-19 patients without T2DM, neutrophils, WBC, NLR, PaO~2~:FiO~2~ ratio, and SaO~2~ were that the variables with higher contributions for PC1 (22%),while DBP, SBP, PaO~2~:FiO~2~ ratio, PaO~2~ and NLR were that the variables with higher contributions for PC2 (12.3%) but PaO~2~:FiO~2~ ratio, SaO~2~ abd PaO~2~ were important in survivor group (Figure 2B). Also, the biplot of PC1 and PC3 showed similar results including age (Figure S2B). However, based on the results of bivariate analysis and PCA, the T2DM group showed that SBP, DBP, respiratory rate and platelets was not showed difference significantly by outcome groups, and only SBP, DBP, and platelets was not showed difference significantly by outcome groups in patients without T2DM.
 :::
 
-```{r fig.height=6, fig.width=14, fig.align='center'}
+```{r fig.height=10, fig.width=24, fig.align='center'}
 # Arrange multiple plots
 FS2 <- ggpubr::ggarrange(
   b1.dm, b1.non,
@@ -3649,7 +3659,7 @@ FS2 <- ggpubr::ggarrange(
 FS2
 ```
 
-```{r fig.height=6, fig.width=14, fig.align='center', echo=FALSE}
+```{r fig.height=10, fig.width=24, fig.align='center', echo=FALSE}
 # Arrange multiple plots
 FS2_gray <- ggpubr::ggarrange(
   b1.dm_gray, b1.non_gray,
@@ -3690,7 +3700,7 @@ tSNE_df <- tSNE_fit$Y |>
 tSNE_df <- tSNE_df |>
   inner_join(meta_numerical, by = "ID")
 
-tSNE_plot.dm <- tSNE_df |>
+tSNE_df |>
   ggplot(aes(x = tSNE1,
              y = tSNE2,
              color = outcome)) +
@@ -3699,8 +3709,6 @@ tSNE_plot.dm <- tSNE_df |>
   scale_color_pomological() +
   theme_pomological_fancy() +
   theme(legend.position = "right")
-
-paint_pomological(tSNE_plot.dm, res = 110)
 ```
 
 ### t-SNE of patients without T2DM
@@ -3726,7 +3734,7 @@ tSNE_df <- tSNE_fit$Y |>
 tSNE_df <- tSNE_df |>
   inner_join(meta_numerical, by = "ID")
 
-tSNE_plot.non <- tSNE_df |>
+tSNE_df |>
   ggplot(aes(x = tSNE1,
              y = tSNE2,
              color = outcome)) +
@@ -3735,8 +3743,6 @@ tSNE_plot.non <- tSNE_df |>
   scale_color_pomological() +
   theme_pomological_fancy() +
   theme(legend.position = "right")
-
-paint_pomological(tSNE_plot.non, res = 110)
 ```
 
 # Save outputs
@@ -3898,7 +3904,7 @@ ggsave(
 # Save supplementary figure 3 (PNG)
 ggsave(
   plot = F1_dm,
-  filename = here("outputs", "FIG_S2.png"),
+  filename = here("outputs", "FIG_S3.png"),
   width = 24,
   height = 10,
   dpi = 300,
@@ -3907,7 +3913,7 @@ ggsave(
 # Save supplementary figure 3 (JPEG)
 ggsave(
   plot = F1_dm,
-  filename = here("outputs", "FIG_S2.jpeg"),
+  filename = here("outputs", "FIG_S3.jpeg"),
   width = 24,
   height = 10,
   dpi = 300,
@@ -3931,7 +3937,7 @@ ggsave(
   dpi = 300,
   units = "in")
 
-# Save supplementary figure 4 gray (PNG)
+# Save supplementary figure 4 (PNG)
 ggsave(
   plot = F1_non,
   filename = here("outputs", "FIG_S4.png"),
@@ -3940,7 +3946,7 @@ ggsave(
   dpi = 300,
   units = "in")
 
-# Save supplementary figure 4 gray (JPEG)
+# Save supplementary figure 4 (JPEG)
 ggsave(
   plot = F1_non,
   filename = here("outputs", "FIG_S4.jpeg"),
