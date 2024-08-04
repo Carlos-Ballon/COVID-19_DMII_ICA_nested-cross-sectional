@@ -150,13 +150,13 @@ group_stat_table_plot <- function(data_used, var, outcome) {
     ggplot2::labs(
       x = element_blank(),
       y = "Density",
-      color = "Group",
+      color = "Group", 
+      fill = "Group",
       title = paste("Density Plot of", var)
     ) +
     theme_538() +
     ggsci::scale_color_bmj(alpha = 0.8) +
     ggsci::scale_fill_bmj(alpha = 0.2) +
-    ggplot2::guides(fill = "none") +
     ggplot2::theme(legend.position = "none")
   
   ggpubr::ggarrange(plot,
